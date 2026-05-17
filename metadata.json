@@ -1,0 +1,6 @@
+{
+  "name": "HHIP SLUMS",
+  "description": "Logistics and Uniform Management System",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}

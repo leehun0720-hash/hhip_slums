@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      // leehun0720@gmail.com is the hardcoded initial admin.
+      return isSignedIn() && (request.auth.token.email == 'leehun0720@gmail.com' || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN'));
+    }
+    
+    function getUserRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : null;
+    }
+
+    function isFactory() {
+      return isSignedIn() && getUserRole() == 'FACTORY';
+    }
+
+    function isBuyer() {
+      return isSignedIn() && getUserRole() == 'BUYER';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['email', 'role', 'name', 'createdAt', 'updatedAt'])
+            && data.email is string && data.email.size() <= 200
+            && data.name is string && data.name.size() <= 100
+            && data.role in ['ADMIN', 'FACTORY', 'BUYER', 'PENDING']
+            && data.createdAt is timestamp
+            && data.updatedAt is timestamp;
+      }
+      
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      
+      allow create: if isSignedIn() 
+                    && (
+                       (request.auth.uid == userId && request.resource.data.role == 'PENDING')
+                       || isAdmin()
+                       || (request.auth.token.email == 'leehun0720@gmail.com')
+                    )
+                    && isValidUser(request.resource.data)
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.updatedAt == request.time;
+                    
+      allow update: if (isAdmin() || (isSignedIn() && request.auth.token.email == 'leehun0720@gmail.com')) 
+                    && isValidUser(request.resource.data)
+                    && request.resource.data.createdAt == resource.data.createdAt;
+                    
+      allow delete: if isAdmin();
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      function isValidProduct(data) {
+        return data.keys().hasAll(['id', 'category', 'type', 'size', 'color', 'maxStock', 'buyerStock', 'factoryStock', 'status'])
+            && data.id is string && data.id.size() <= 128
+            && data.category is string && data.category.size() <= 100
+            && data.type is string && data.type.size() <= 100
+            && data.size is string && data.size.size() <= 100
+            && data.color is string && data.color.size() <= 100
+            && data.maxStock is number
+            && data.buyerStock is number
+            && data.factoryStock is number
+            && data.status is string && data.status in ['생산중', '운송중', '통관중', '납품대기', '정상', '부족'];
+      }
+      
+      // both Factory and Buyer can see process management, so everyone can see.
+      allow read: if isSignedIn() && (isAdmin() || isFactory() || isBuyer());
+      
+      allow create: if isSignedIn() && (isAdmin() || isBuyer() || isFactory())
+                    && isValidId(productId)
+                    && isValidProduct(request.resource.data);
+                    
+      // Simplifying update. Normally would be explicitly split by hasOnly() per role.
+      allow update: if isSignedIn() && (isAdmin() || isBuyer() || isFactory())
+                    && isValidProduct(request.resource.data);
+                    
+      allow delete: if isAdmin() || isBuyer() || isFactory();
+    }
+    
+    // Categories and Settings
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isBuyer() || isFactory();
+    }
+  }
+}
