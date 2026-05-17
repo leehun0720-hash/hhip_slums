@@ -13,6 +13,7 @@ import Reports from './pages/Reports';
 import BuyerInventory from './pages/BuyerInventory';
 import AuthProvider from './components/AuthProvider';
 import AdminSettings from './pages/AdminSettings';
+import ContractManager from './pages/ContractManager';
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="buyer-inventory" element={<BuyerInventory />} />
             <Route path="scanner" element={<Scanner />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="contract" element={<ContractManager />} />
             <Route path="admin" element={<AdminSettings />} />
           </Route>
         </Routes>

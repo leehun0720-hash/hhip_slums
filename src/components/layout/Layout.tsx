@@ -1,4 +1,4 @@
-import { Box, LayoutDashboard, Barcode, ScanLine, FileBarChart, UserSquare2, Factory, Activity, LogOut, Settings, Key } from 'lucide-react';
+import { Box, LayoutDashboard, Barcode, ScanLine, FileBarChart, UserSquare2, Factory, Activity, LogOut, Settings, Key, FileText } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
@@ -63,6 +63,7 @@ export default function Layout() {
       groupLabel: '관리자 전용',
       showFor: ['ADMIN'],
       items: [
+        { to: '/contract', label: '계약서 작성', icon: FileText },
         { to: '/admin', label: '권한 관리', icon: Settings },
       ]
     }
