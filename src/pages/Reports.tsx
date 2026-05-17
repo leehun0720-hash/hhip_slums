@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useStore, Product } from '@/store/useStore';
 import { downloadExcel, downloadPDF } from '@/lib/exportUtils';
-import { FileSpreadsheet, FileText, CheckCircle, Edit2, Trash2, X } from 'lucide-react';
+import { FileSpreadsheet, FileText, Edit2, Trash2, X, Activity, Package, ShoppingCart, Archive } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+type ReportType = 'FACTORY_PROCESS' | 'FACTORY_INVENTORY' | 'BUYER_ORDER' | 'BUYER_INVENTORY';
 
 const TOP_SIZES = ['S (90)', 'M (95)', 'L (100)', 'XL (105)', 'XXL (110)', 'XXXL (115)', 'XXXXL (120)'];
 const BOTTOM_SIZES = Array.from({ length: 15 }, (_, i) => `${26 + i}`);
@@ -11,6 +14,11 @@ const getSizes = (type: string) => type === '하의' ? BOTTOM_SIZES : TOP_SIZES;
 export default function Reports() {
   const { role, inventory, categories, updateProduct, deleteProduct } = useStore();
   const todayDate = format(new Date(), 'yyyy-MM-dd');
+
+  const [activeTab, setActiveTab] = useState<ReportType>(() => {
+    if (role === 'BUYER') return 'BUYER_ORDER';
+    return 'FACTORY_PROCESS';
+  });
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -31,155 +39,190 @@ export default function Reports() {
     }
   };
 
-  // 다운로드 핸들러 - 공장용
-  const handleFactoryExcel = () => {
+  // --- FACTORY_PROCESS ---
+  const processItems = inventory.filter(item => ['생산중', '운송중', '통관중', '납품대기'].includes(item.status));
+  const handleFactoryProcessExcel = () => {
+    const excelData = processItems.map(item => ({
+      '제품 ID': item.id,
+      '분류': item.category,
+      '타입': item.type,
+      '사양': `[${item.size}] ${item.color}`,
+      '공장재고': item.factoryStock,
+      '진행상태': item.status
+    }));
+    downloadExcel(excelData, `공정관리_보고서_${todayDate}`);
+  };
+
+  // --- FACTORY_INVENTORY ---
+  const handleFactoryInventoryExcel = () => {
     const excelData = inventory.map(item => ({
       '제품 ID': item.id,
       '분류': item.category,
       '타입': item.type,
-      '요약': `[${item.size}] ${item.color}`,
+      '사양': `[${item.size}] ${item.color}`,
       '공장재고 (출고대기)': item.factoryStock,
       '상태': item.status
     }));
-    downloadExcel(excelData, `공장출고_확인보고서_${todayDate}`);
+    downloadExcel(excelData, `제품등록_관리보고서_${todayDate}`);
   };
 
-  const handleFactoryPdf = () => {
-    downloadPDF('factory-report-element', `공장출고_확인보고서_${todayDate}`);
-  };
-
-  // 다운로드 핸들러 - 매입자용
-  const handleBuyerExcel = () => {
+  // --- BUYER_ORDER ---
+  const handleBuyerOrderExcel = () => {
     const excelData = inventory.map(item => ({
       '제품 ID': item.id,
       '분류': item.category,
       '타입': item.type,
-      '요약': `[${item.size}] ${item.color}`,
+      '사양': `[${item.size}] ${item.color}`,
+      '발주수량(기준재고)': item.maxStock,
+      '입고대기(공장재고)': item.factoryStock,
+      '진행상태': item.status
+    }));
+    downloadExcel(excelData, `신규발주_내역보고서_${todayDate}`);
+  };
+
+  // --- BUYER_INVENTORY ---
+  const handleBuyerInventoryExcel = () => {
+    const excelData = inventory.map(item => ({
+      '제품 ID': item.id,
+      '분류': item.category,
+      '타입': item.type,
+      '사양': `[${item.size}] ${item.color}`,
       '정상 안전재고량': item.maxStock,
       '현재 보유재고': item.buyerStock,
       '상태': item.buyerStock < (item.maxStock * 0.3) ? '재고 부족' : '정상'
     }));
-    downloadExcel(excelData, `매입자_재고관리_보고서_${todayDate}`);
+    downloadExcel(excelData, `재고및내역_보고서_${todayDate}`);
   };
 
-  const handleBuyerPdf = () => {
-    downloadPDF('buyer-report-element', `매입자_재고관리_보고서_${todayDate}`);
+  const handlePdfDownload = (filename: string) => {
+    downloadPDF('report-element', `${filename}_${todayDate}`);
   };
+
+  const TABS = [
+    { id: 'FACTORY_PROCESS', label: '공정 관리', icon: Activity, roles: ['ADMIN', 'FACTORY'] },
+    { id: 'FACTORY_INVENTORY', label: '제품 등록/관리', icon: Package, roles: ['ADMIN', 'FACTORY'] },
+    { id: 'BUYER_ORDER', label: '신규 발주', icon: ShoppingCart, roles: ['ADMIN', 'BUYER'] },
+    { id: 'BUYER_INVENTORY', label: '재고 및 내역', icon: Archive, roles: ['ADMIN', 'BUYER'] },
+  ];
+
+  const visibleTabs = TABS.filter(tab => tab.roles.includes(role));
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">보고서 내보내기</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {role === 'FACTORY' 
-            ? '공장 출고 확인을 위한 내보내기 및 인쇄 기능을 제공합니다.' 
-            : '매입자 실시간 재고 관리 및 결산 보고서를 내보냅니다.'}
+          조회하고자 하는 보고서 탭을 선택하고 엑셀(Excel) 또는 PDF로 다운로드하세요.
         </p>
       </div>
 
-      {role === 'FACTORY' && (
-        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold flex items-center">
-              <CheckCircle className="w-5 h-5 mr-2 text-indigo-500" />
-              공장 출고확인 보고서
-            </h2>
-            <div className="flex gap-2">
-              <button onClick={handleFactoryExcel} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Excel 다운로드
-              </button>
-              <button onClick={handleFactoryPdf} className="bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
-                <FileText className="w-4 h-4 mr-2" />
-                PDF 다운로드
-              </button>
-            </div>
-          </div>
-          
-          {/* PDF 캡처 대상 뷰 (화면에 보여주면서 동시에 캡처용으로 사용) */}
-          <div id="factory-report-element" className="p-8 bg-white overflow-x-auto">
-            <div className="mb-6 text-center">
-              <h3 className="text-2xl font-bold tracking-tighter mb-2">출고 확인 보고서</h3>
-              <p className="text-sm text-slate-500">생성일자: {todayDate}</p>
-            </div>
-            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-              <thead>
-                <tr className="bg-slate-50 border-y border-slate-200">
-                  <th className="py-3 px-4 font-semibold text-slate-700">제품 ID</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700">분류/사양</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700 text-right">공장 재고량</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700">상태</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700 text-center w-20" data-html2canvas-ignore="true">관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventory.map((item, idx) => (
-                  <tr key={item.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? '' : 'bg-slate-50/50'}`}>
-                    <td className="py-3 px-4 font-mono text-xs">{item.id}</td>
-                    <td className="py-3 px-4">[{item.category}] {item.type} ({item.size}) - {item.color}</td>
-                    <td className="py-3 px-4 text-right font-semibold text-indigo-600">{item.factoryStock} 벌</td>
-                    <td className="py-3 px-4 text-xs text-slate-500">{item.status}</td>
-                    <td className="py-3 px-4 flex justify-center gap-1" data-html2canvas-ignore="true">
-                      <button onClick={() => setEditingProduct(item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+        {visibleTabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as ReportType)}
+            className={cn(
+              "flex items-center px-4 py-2.5 rounded-xl font-medium text-sm transition-all whitespace-nowrap",
+              activeTab === tab.id
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+            )}
+          >
+            <tab.icon className={cn("w-4 h-4 mr-2", activeTab === tab.id ? "text-indigo-100" : "text-slate-400")} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      {role === 'BUYER' && (
-        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold flex items-center">
-              <CheckCircle className="w-5 h-5 mr-2 text-blue-500" />
-              매입자 재고관리 보고서
-            </h2>
-            <div className="flex gap-2">
-              <button onClick={handleBuyerExcel} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Excel 다운로드
-              </button>
-              <button onClick={handleBuyerPdf} className="bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
-                <FileText className="w-4 h-4 mr-2" />
-                PDF 다운로드
-              </button>
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        {/* --- FACTORY_PROCESS --- */}
+        {activeTab === 'FACTORY_PROCESS' && (
+          <>
+            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold flex items-center">
+                <Activity className="w-5 h-5 mr-2 text-indigo-500" />
+                공정 관리 보고서
+              </h2>
+              <div className="flex gap-2">
+                <button onClick={handleFactoryProcessExcel} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+                </button>
+                <button onClick={() => handlePdfDownload('공정관리_보고서')} className="bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileText className="w-4 h-4 mr-2" /> PDF
+                </button>
+              </div>
             </div>
-          </div>
-          
-          <div id="buyer-report-element" className="p-8 bg-white overflow-x-auto">
-            <div className="mb-6 text-center">
-              <h3 className="text-2xl font-bold tracking-tighter mb-2">재고 관리 보고서</h3>
-              <p className="text-sm text-slate-500">생성일자: {todayDate}</p>
-            </div>
-            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-              <thead>
-                <tr className="bg-slate-50 border-y border-slate-200">
-                  <th className="py-3 px-4 font-semibold text-slate-700">제품 ID</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700">분류/사양</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700 text-right">보유 재고량</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700 text-right">기준 재고량</th>
-                  <th className="py-3 px-4 font-semibold text-slate-700 text-center w-20" data-html2canvas-ignore="true">관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventory.map((item, idx) => {
-                   const isLow = item.buyerStock < (item.maxStock * 0.3);
-                   return (
+            <div id="report-element" className="p-8 bg-white overflow-x-auto">
+              <div className="mb-6 text-center">
+                <h3 className="text-2xl font-bold tracking-tighter mb-2">공정 관리 보고서</h3>
+                <p className="text-sm text-slate-500">생성일자: {todayDate}</p>
+              </div>
+              <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="bg-slate-50 border-y border-slate-200">
+                    <th className="py-3 px-4 font-semibold text-slate-700">제품 ID</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700">분류/사양</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-right">공장 재고량</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700">진행 상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processItems.map((item, idx) => (
                     <tr key={item.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? '' : 'bg-slate-50/50'}`}>
                       <td className="py-3 px-4 font-mono text-xs">{item.id}</td>
                       <td className="py-3 px-4">[{item.category}] {item.type} ({item.size}) - {item.color}</td>
-                      <td className={`py-3 px-4 text-right font-semibold ${isLow ? 'text-rose-600' : 'text-slate-800'}`}>
-                        {item.buyerStock} 벌
-                      </td>
-                      <td className="py-3 px-4 text-right text-slate-500">{item.maxStock} 벌</td>
+                      <td className="py-3 px-4 text-right font-semibold text-indigo-600">{item.factoryStock} 벌</td>
+                      <td className="py-3 px-4 font-semibold text-amber-600">{item.status}</td>
+                    </tr>
+                  ))}
+                  {processItems.length === 0 && (
+                    <tr><td colSpan={4} className="py-8 text-center text-slate-500">진행중인 공정 내역이 없습니다.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* --- FACTORY_INVENTORY --- */}
+        {activeTab === 'FACTORY_INVENTORY' && (
+          <>
+            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold flex items-center">
+                <Package className="w-5 h-5 mr-2 text-indigo-500" />
+                제품 등록/관리 보고서
+              </h2>
+              <div className="flex gap-2">
+                <button onClick={handleFactoryInventoryExcel} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+                </button>
+                <button onClick={() => handlePdfDownload('제품등록_관리보고서')} className="bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileText className="w-4 h-4 mr-2" /> PDF
+                </button>
+              </div>
+            </div>
+            <div id="report-element" className="p-8 bg-white overflow-x-auto">
+              <div className="mb-6 text-center">
+                <h3 className="text-2xl font-bold tracking-tighter mb-2">제품 등록/관리 보고서</h3>
+                <p className="text-sm text-slate-500">생성일자: {todayDate}</p>
+              </div>
+              <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="bg-slate-50 border-y border-slate-200">
+                    <th className="py-3 px-4 font-semibold text-slate-700">제품 ID</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700">분류/사양</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-right">공장 재고량</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700">상태</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-center w-20" data-html2canvas-ignore="true">관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.map((item, idx) => (
+                    <tr key={item.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? '' : 'bg-slate-50/50'}`}>
+                      <td className="py-3 px-4 font-mono text-xs">{item.id}</td>
+                      <td className="py-3 px-4">[{item.category}] {item.type} ({item.size}) - {item.color}</td>
+                      <td className="py-3 px-4 text-right font-semibold text-indigo-600">{item.factoryStock} 벌</td>
+                      <td className="py-3 px-4 text-xs text-slate-500">{item.status}</td>
                       <td className="py-3 px-4 flex justify-center gap-1" data-html2canvas-ignore="true">
                         <button onClick={() => setEditingProduct(item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">
                           <Edit2 className="w-4 h-4" />
@@ -189,14 +232,132 @@ export default function Reports() {
                         </button>
                       </td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+                  ))}
+                  {inventory.length === 0 && (
+                    <tr><td colSpan={5} className="py-8 text-center text-slate-500">등록된 제품이 없습니다.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
+        {/* --- BUYER_ORDER --- */}
+        {activeTab === 'BUYER_ORDER' && (
+          <>
+            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold flex items-center">
+                <ShoppingCart className="w-5 h-5 mr-2 text-blue-500" />
+                신규 발주 내역 보고서
+              </h2>
+              <div className="flex gap-2">
+                <button onClick={handleBuyerOrderExcel} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+                </button>
+                <button onClick={() => handlePdfDownload('신규발주_내역보고서')} className="bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileText className="w-4 h-4 mr-2" /> PDF
+                </button>
+              </div>
+            </div>
+            <div id="report-element" className="p-8 bg-white overflow-x-auto">
+              <div className="mb-6 text-center">
+                <h3 className="text-2xl font-bold tracking-tighter mb-2">신규 발주 내역 보고서</h3>
+                <p className="text-sm text-slate-500">생성일자: {todayDate}</p>
+              </div>
+              <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="bg-slate-50 border-y border-slate-200">
+                    <th className="py-3 px-4 font-semibold text-slate-700">제품 ID</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700">분류/사양</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-right">발주 수량(기준)</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-right">입고 대기(공장)</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700">진행 상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.map((item, idx) => (
+                    <tr key={item.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? '' : 'bg-slate-50/50'}`}>
+                      <td className="py-3 px-4 font-mono text-xs">{item.id}</td>
+                      <td className="py-3 px-4">[{item.category}] {item.type} ({item.size}) - {item.color}</td>
+                      <td className="py-3 px-4 text-right font-semibold text-blue-600">{item.maxStock} 벌</td>
+                      <td className="py-3 px-4 text-right text-emerald-600">{item.factoryStock} 벌</td>
+                      <td className="py-3 px-4 text-xs font-semibold text-slate-600">{item.status}</td>
+                    </tr>
+                  ))}
+                  {inventory.length === 0 && (
+                    <tr><td colSpan={5} className="py-8 text-center text-slate-500">내역이 없습니다.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* --- BUYER_INVENTORY --- */}
+        {activeTab === 'BUYER_INVENTORY' && (
+          <>
+            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold flex items-center">
+                <Archive className="w-5 h-5 mr-2 text-blue-500" />
+                재고 및 내역 보고서
+              </h2>
+              <div className="flex gap-2">
+                <button onClick={handleBuyerInventoryExcel} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+                </button>
+                <button onClick={() => handlePdfDownload('재고및내역_보고서')} className="bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center transition-colors">
+                  <FileText className="w-4 h-4 mr-2" /> PDF
+                </button>
+              </div>
+            </div>
+            <div id="report-element" className="p-8 bg-white overflow-x-auto">
+              <div className="mb-6 text-center">
+                <h3 className="text-2xl font-bold tracking-tighter mb-2">재고 및 내역 보고서</h3>
+                <p className="text-sm text-slate-500">생성일자: {todayDate}</p>
+              </div>
+              <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="bg-slate-50 border-y border-slate-200">
+                    <th className="py-3 px-4 font-semibold text-slate-700">제품 ID</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700">분류/사양</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-right">보유 재고량</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-right">안전 재고 기준</th>
+                    <th className="py-3 px-4 font-semibold text-slate-700 text-center w-20" data-html2canvas-ignore="true">관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.map((item, idx) => {
+                     const isLow = item.buyerStock < (item.maxStock * 0.3);
+                     return (
+                      <tr key={item.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? '' : 'bg-slate-50/50'}`}>
+                        <td className="py-3 px-4 font-mono text-xs">{item.id}</td>
+                        <td className="py-3 px-4">[{item.category}] {item.type} ({item.size}) - {item.color}</td>
+                        <td className={`py-3 px-4 text-right font-semibold ${isLow ? 'text-rose-600' : 'text-slate-800'}`}>
+                          {item.buyerStock} 벌
+                        </td>
+                        <td className="py-3 px-4 text-right text-slate-500">{item.maxStock} 벌</td>
+                        <td className="py-3 px-4 flex justify-center gap-1" data-html2canvas-ignore="true">
+                          <button onClick={() => setEditingProduct(item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {inventory.length === 0 && (
+                    <tr><td colSpan={5} className="py-8 text-center text-slate-500">재고 내역이 없습니다.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 모달 (수정, 삭제) */}
       {editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
@@ -359,7 +520,7 @@ export default function Reports() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
+
