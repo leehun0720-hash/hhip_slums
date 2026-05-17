@@ -109,14 +109,14 @@ export default function ProcessManager() {
                           <ArrowRight className="w-4 h-4 mx-2 text-emerald-400" />
                           <button
                             onClick={() => {
-                              if (confirm('납품을 확정하고 매입자 재고로 이전하시겠습니까?')) {
+                              if (confirm('납품을 완료 처리하고 구매자 재고에 추가하시겠습니까?')) {
                                 useStore.getState().completeDelivery(item.id);
                               }
                             }}
                             className="flex flex-col items-center justify-center w-20 h-20 rounded-xl bg-emerald-50 border-2 border-emerald-500 text-emerald-700 shadow-sm hover:bg-emerald-100 transition-all duration-200"
                           >
                             <CheckCircle className="w-6 h-6 mb-1.5 text-emerald-600" />
-                            <span className="text-xs font-semibold text-emerald-700">납품 확정</span>
+                            <span className="text-xs font-semibold text-emerald-700">납품 완료</span>
                           </button>
                         </>
                       )}
