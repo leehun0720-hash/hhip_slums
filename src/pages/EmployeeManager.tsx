@@ -130,6 +130,75 @@ export default function EmployeeManager() {
     win.document.close();
   };
 
+  const handleCopyBarcode = async () => {
+    if (!barcodeRef.current || !selectedEmployee) return;
+    try {
+      const originalCanvas = barcodeRef.current.querySelector('canvas');
+      if (!originalCanvas) {
+        alert('바코드를 찾을 수 없습니다.');
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const padding = 30;
+      const textSpace = 100;
+      
+      canvas.width = Math.max(originalCanvas.width, 250) + (padding * 2);
+      canvas.height = originalCanvas.height + textSpace + (padding * 2);
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Center the barcode horizontally
+      const barcodeX = (canvas.width - originalCanvas.width) / 2;
+      ctx.drawImage(originalCanvas, barcodeX, padding);
+
+      // Draw texts below barcode
+      ctx.textAlign = 'center';
+      const centerX = canvas.width / 2;
+      let y = padding + originalCanvas.height + 35;
+
+      // Name
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText(selectedEmployee.name, centerX, y);
+
+      // Department
+      y += 26;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px sans-serif';
+      ctx.fillText(selectedEmployee.department, centerX, y);
+
+      // ID
+      y += 24;
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px monospace';
+      ctx.fillText(selectedEmployee.id, centerX, y);
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          alert('이미지 생성에 실패했습니다.');
+          return;
+        }
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item]).then(() => {
+          alert('사원증 바코드가 클립보드에 복사되었습니다. (Ctrl+V로 붙여넣기)');
+        }).catch(err => {
+          console.error(err);
+          alert('클립보드 권한이 없거나 지원하지 않는 브라우저입니다.');
+        });
+      }, 'image/png');
+
+    } catch (err) {
+      console.error(err);
+      alert('클립보드에 복사하는 중 오류가 발생했습니다.');
+    }
+  };
+
   const filtered = employees.filter(e => 
     e.name.includes(searchTerm) || e.department.includes(searchTerm) || e.id.includes(searchTerm)
   );
@@ -257,6 +326,10 @@ export default function EmployeeManager() {
                 <button onClick={handlePrintBarcode} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-100 transition-all shadow-sm">
                   <Printer className="w-4 h-4" />
                   인쇄
+                </button>
+                <button onClick={handleCopyBarcode} className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl font-bold hover:bg-indigo-100 transition-all shadow-sm">
+                  <Copy className="w-4 h-4" />
+                  이미지 복사
                 </button>
               </div>
               <p className="text-xs text-slate-400 text-center mt-4">

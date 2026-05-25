@@ -80,29 +80,71 @@ export default function ProductManager() {
   };
 
   const handleCopyImage = async () => {
-    if (!barcodeRef.current) return;
+    if (!barcodeRef.current || !generatedProduct) return;
     try {
-      const item = new ClipboardItem({
-        'image/png': new Promise(async (resolve, reject) => {
-          try {
-            const canvas = await html2canvas(barcodeRef.current, { scale: 2 });
-            canvas.toBlob((blob) => {
-              if (blob) {
-                resolve(blob);
-              } else {
-                reject(new Error('Failed to create image blob'));
-              }
-            }, 'image/png');
-          } catch (err) {
-            reject(err);
-          }
-        })
-      });
-      await navigator.clipboard.write([item]);
-      alert('바코드 이미지가 클립보드에 복사되었습니다.');
+      const originalCanvas = barcodeRef.current.querySelector('canvas');
+      if (!originalCanvas) {
+        alert('바코드를 찾을 수 없습니다.');
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const padding = 30;
+      const textSpace = 90;
+      
+      canvas.width = Math.max(originalCanvas.width, 300) + (padding * 2);
+      canvas.height = originalCanvas.height + textSpace + (padding * 2);
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Center the barcode horizontally
+      const barcodeX = (canvas.width - originalCanvas.width) / 2;
+      ctx.drawImage(originalCanvas, barcodeX, padding);
+
+      // Draw texts below barcode
+      ctx.textAlign = 'center';
+      const centerX = canvas.width / 2;
+      let y = padding + originalCanvas.height + 30;
+
+      // ID
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText(generatedProduct.id, centerX, y);
+
+      // Category & Type
+      y += 28;
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, centerX, y);
+
+      // Size & Color
+      y += 22;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, centerX, y);
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          alert('이미지 생성에 실패했습니다.');
+          return;
+        }
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item]).then(() => {
+          alert('바코드 이미지가 클립보드에 복사되었습니다. 엑셀이나 메신저에 붙여넣기(Ctrl+V) 하세요.');
+        }).catch(err => {
+          console.error(err);
+          alert('클립보드 권한이 없거나 지원하지 않는 브라우저입니다.');
+        });
+      }, 'image/png');
+
     } catch (err) {
-      console.error('Failed to copy image: ', err);
-      alert('클립보드 복사를 지원하지 않거나 권한이 없습니다. 다른 브라우저를 이용해주세요.');
+      console.error(err);
+      alert('이미지를 클립보드에 복사하는 중 오류가 발생했습니다.');
     }
   };
   
