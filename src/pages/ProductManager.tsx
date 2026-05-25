@@ -23,41 +23,57 @@ export default function ProductManager() {
       alert('팝업 차단이 설정되어 있습니다. 팝업 차단을 해제해주세요.');
       return;
     }
-    
-    win.document.write('<html><body><p style="font-family: sans-serif; text-align: center; margin-top: 50px;">바코드 이미지 생성 중...</p></body></html>');
 
     if (barcodeRef.current) {
-      try {
-        const canvas = await html2canvas(barcodeRef.current, { scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-        
-        win.document.open();
-        win.document.write(`
-          <html>
-            <head><title>Print Barcode</title></head>
-            <body style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-              <img id="print-img" src="${imgData}" style="max-width: 100%; height: auto;" />
-              <script>
-                const img = document.getElementById('print-img');
-                img.onload = () => {
-                  window.focus();
-                  setTimeout(() => {
-                    window.print();
-                  }, 200);
-                };
-                window.onafterprint = () => {
-                  window.close();
-                };
-              </script>
-            </body>
-          </html>
-        `);
-        win.document.close();
-      } catch (err) {
-        win.close();
-        alert('프린트 이미지를 생성하는 중 오류가 발생했습니다.');
-        console.error(err);
-      }
+      const barcodeHtml = barcodeRef.current.innerHTML;
+      
+      win.document.open();
+      win.document.write(`
+        <html>
+          <head>
+            <title>Print Barcode</title>
+            <style>
+              body { 
+                display: flex; justify-content: center; align-items: center; 
+                height: 100vh; margin: 0; font-family: sans-serif; 
+              }
+              .print-container {
+                text-align: center;
+                padding: 20px;
+              }
+              .font-mono { font-family: monospace; }
+              .font-bold { font-weight: bold; }
+              .font-semibold { font-weight: 600; }
+              .text-lg { font-size: 1.25rem; line-height: 1.75rem; }
+              .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+              .text-xs { font-size: 0.75rem; line-height: 1rem; }
+              .mt-3 { margin-top: 0.75rem; }
+              .mt-1 { margin-top: 0.25rem; }
+              .tracking-wider { letter-spacing: 0.05em; }
+              .text-slate-800 { color: #1e293b; }
+              .text-slate-600 { color: #475569; }
+              .text-slate-500 { color: #64748b; }
+            </style>
+          </head>
+          <body>
+            <div class="print-container">
+              ${barcodeHtml}
+            </div>
+            <script>
+              window.onload = () => {
+                window.focus();
+                setTimeout(() => {
+                  window.print();
+                }, 200);
+              };
+              window.onafterprint = () => {
+                window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      win.document.close();
     } else {
       win.close();
     }
