@@ -202,7 +202,7 @@ export default function Scanner() {
               </>
             ) : (
               <div className="text-slate-600 font-bold w-full text-center py-1">
-                직원 사원증 바코드를 먼저 스캔해주세요.
+                현재 켜져있는 이 카메라에 직원 사원증(바코드)을 먼저 스캔해주세요.
               </div>
             )}
           </div>
