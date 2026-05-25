@@ -14,7 +14,8 @@ export default function BuyerInventory() {
   const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const [adjustAmount, setAdjustAmount] = useState<number>(0);
+  const [txMode, setTxMode] = useState<'IN' | 'OUT' | 'SET'>('IN');
+  const [txInput, setTxInput] = useState<number>(0);
   const [adjustReason, setAdjustReason] = useState<string>('');
 
   const filteredInventory = inventory.filter(item => 
@@ -37,29 +38,48 @@ export default function BuyerInventory() {
   };
 
   const handleAdjustSubmit = () => {
-    if (adjustingProduct && adjustAmount !== 0 && adjustReason.trim() !== '') {
+    if (adjustingProduct && txInput > 0) {
       const email = user?.email || 'Unknown User';
-      adjustStock(adjustingProduct.id, adjustAmount, adjustReason, email);
+      let finalAmount = 0;
+      let finalReason = adjustReason.trim() || '';
+
+      if (txMode === 'IN') {
+        finalAmount = txInput;
+        if (!finalReason) finalReason = '입고 등록';
+      } else if (txMode === 'OUT') {
+        finalAmount = -txInput;
+        if (!finalReason) finalReason = '출고 등록';
+      } else if (txMode === 'SET') {
+        finalAmount = txInput - adjustingProduct.buyerStock;
+        if (!finalReason) finalReason = '이월 및 실사조정';
+      }
+
+      if (finalAmount === 0 && txMode === 'SET') {
+        alert('현재 재고량과 동일합니다.');
+        return;
+      }
+
+      adjustStock(adjustingProduct.id, finalAmount, finalReason, email);
       
       // Update local state of adjustingProduct so modal shows updated history immediately
       const newTx: Transaction = {
         id: Math.random().toString(36).substring(2, 9),
         date: new Date().toISOString(),
-        type: 'ADJUST',
-        amount: adjustAmount,
-        reason: adjustReason,
+        type: txMode === 'IN' ? 'IN' : txMode === 'OUT' ? 'OUT' : 'ADJUST',
+        amount: finalAmount,
+        reason: finalReason,
         by: email
       };
       setAdjustingProduct({
         ...adjustingProduct,
-        buyerStock: Number(adjustingProduct.buyerStock) + Number(adjustAmount),
+        buyerStock: Number(adjustingProduct.buyerStock) + Number(finalAmount),
         history: [...(adjustingProduct.history || []), newTx]
       });
 
-      setAdjustAmount(0);
+      setTxInput(0);
       setAdjustReason('');
     } else {
-      alert('변동 수량과 사유를 모두 입력해주세요.');
+      alert('0보다 큰 수량을 입력해주세요.');
     }
   };
 
@@ -353,7 +373,7 @@ export default function BuyerInventory() {
               <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-100 shrink-0">
                 <h3 className="font-bold text-slate-800 text-lg flex items-center">
                   <ArrowRightLeft className="w-5 h-5 mr-2 text-blue-500" />
-                  수동 재고 조정
+                  재고 등록 및 이월
                 </h3>
                 <button onClick={() => setAdjustingProduct(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="w-5 h-5" />
@@ -366,42 +386,74 @@ export default function BuyerInventory() {
                   <p className="text-5xl font-black text-blue-700 tracking-tighter">{adjustingProduct.buyerStock}</p>
                 </div>
 
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button 
+                    onClick={() => setTxMode('IN')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${txMode === 'IN' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    입고 (+)
+                  </button>
+                  <button 
+                    onClick={() => setTxMode('OUT')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${txMode === 'OUT' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    출고 (-)
+                  </button>
+                  <button 
+                    onClick={() => setTxMode('SET')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${txMode === 'SET' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    이월/실사 (확정)
+                  </button>
+                </div>
+
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-2">변동 수량 (-, +)</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-2">
+                      {txMode === 'SET' ? '실재고(이월) 수량 입력' : '수량 입력'}
+                    </label>
                     <div className="relative">
                       <input 
                         type="number" 
                         className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-lg font-bold text-center focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-shadow" 
-                        value={adjustAmount || ''} 
-                        onChange={(e) => setAdjustAmount(Number(e.target.value))}
+                        value={txInput || ''} 
+                        onChange={(e) => setTxInput(Math.max(0, Number(e.target.value)))}
                         placeholder="0"
+                        min="0"
                       />
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1">
-                        <button onClick={() => setAdjustAmount(prev => prev + 1)} className="p-1.5 bg-slate-100 text-slate-600 rounded-md hover:bg-emerald-100 hover:text-emerald-700"><TrendingUp className="w-4 h-4"/></button>
-                        <button onClick={() => setAdjustAmount(prev => prev - 1)} className="p-1.5 bg-slate-100 text-slate-600 rounded-md hover:bg-rose-100 hover:text-rose-700"><TrendingDown className="w-4 h-4"/></button>
+                        <button onClick={() => setTxInput(prev => prev + 1)} className="p-1.5 bg-slate-100 text-slate-600 rounded-md hover:bg-emerald-100 hover:text-emerald-700"><TrendingUp className="w-4 h-4"/></button>
+                        <button onClick={() => setTxInput(prev => Math.max(0, prev - 1))} className="p-1.5 bg-slate-100 text-slate-600 rounded-md hover:bg-rose-100 hover:text-rose-700"><TrendingDown className="w-4 h-4"/></button>
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1 text-center">차감 시 -를 붙이거나 아래 화살표를 누르세요.</p>
+                    <p className="text-[10px] text-slate-500 mt-1 text-center">
+                      {txMode === 'SET' 
+                        ? '장부에 남길 최종 재고 수량을 입력하세요.' 
+                        : '양수(0보다 큰 수)로 입력하세요.'}
+                    </p>
                   </div>
                   <div>
-                     <label className="block text-xs font-bold text-slate-700 mb-2">조정 사유</label>
+                     <label className="block text-xs font-bold text-slate-700 mb-2">사유 (선택)</label>
                      <input 
                         type="text" 
                         className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-shadow" 
                         value={adjustReason} 
                         onChange={(e) => setAdjustReason(e.target.value)}
-                        placeholder="예: 샘플 증정, 불량 폐기 등"
+                        placeholder={txMode === 'IN' ? '입고 사유 입력' : txMode === 'OUT' ? '출고 사유 입력' : '이월 및 조정 사유 입력'}
                       />
                   </div>
                 </div>
 
                 <button 
                   onClick={handleAdjustSubmit} 
-                  disabled={!adjustAmount || !adjustReason}
-                  className="w-full py-3.5 px-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed mt-auto"
+                  disabled={!txInput}
+                  className={`w-full py-3.5 px-4 text-white rounded-xl font-bold transition-all shadow-md mt-auto disabled:opacity-50 disabled:cursor-not-allowed ${
+                    txMode === 'IN' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' :
+                    txMode === 'OUT' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20' :
+                    'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20'
+                  }`}
                 >
-                  기록 추가 및 반영
+                  {txMode === 'IN' ? '입고 처리하기' : txMode === 'OUT' ? '출고 처리하기' : '이월 내역 반영하기'}
                 </button>
               </div>
             </div>
