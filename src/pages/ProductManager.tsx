@@ -18,27 +18,48 @@ export default function ProductManager() {
   const barcodeRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = async () => {
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('팝업 차단이 설정되어 있습니다. 팝업 차단을 해제해주세요.');
+      return;
+    }
+    
+    win.document.write('<html><body><p style="font-family: sans-serif; text-align: center; margin-top: 50px;">바코드 이미지 생성 중...</p></body></html>');
+
     if (barcodeRef.current) {
-      const canvas = await html2canvas(barcodeRef.current);
-      const imgData = canvas.toDataURL('image/png');
-      const win = window.open('', '_blank');
-      if (win) {
+      try {
+        const canvas = await html2canvas(barcodeRef.current, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        
+        win.document.open();
         win.document.write(`
           <html>
             <head><title>Print Barcode</title></head>
             <body style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-              <img src="${imgData}" />
+              <img id="print-img" src="${imgData}" style="max-width: 100%; height: auto;" />
               <script>
-                window.onload = function() {
-                  window.print();
-                  setTimeout(() => window.close(), 100);
-                }
+                const img = document.getElementById('print-img');
+                img.onload = () => {
+                  window.focus();
+                  setTimeout(() => {
+                    window.print();
+                  }, 200);
+                };
+                window.onafterprint = () => {
+                  window.close();
+                };
               </script>
             </body>
           </html>
         `);
         win.document.close();
+      } catch (err) {
+        win.close();
+        alert('프린트 이미지를 생성하는 중 오류가 발생했습니다.');
+        console.error(err);
       }
+    } else {
+      win.close();
     }
   };
 
