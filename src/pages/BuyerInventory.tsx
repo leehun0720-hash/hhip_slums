@@ -105,8 +105,8 @@ export default function BuyerInventory() {
               <tr>
                 <th className="py-4 px-5 font-semibold text-slate-700">제품 정보</th>
                 <th className="py-4 px-5 font-semibold text-slate-700 text-right">보유 재고량</th>
-                <th className="py-4 px-5 font-semibold text-slate-700 text-right">안전 기준</th>
-                <th className="py-4 px-5 font-semibold text-slate-700">상태</th>
+                <th className="py-4 px-5 font-semibold text-slate-700 text-right hidden sm:table-cell">안전 기준</th>
+                <th className="py-4 px-5 font-semibold text-slate-700 hidden sm:table-cell">상태</th>
                 <th className="py-4 px-5 font-semibold text-slate-700 text-center w-32">관리</th>
               </tr>
             </thead>
@@ -144,10 +144,10 @@ export default function BuyerInventory() {
                         )}
                       </div>
                     </td>
-                    <td className="py-4 px-5 text-right text-slate-500 font-medium">
+                    <td className="py-4 px-5 text-right text-slate-500 font-medium hidden sm:table-cell">
                       {item.maxStock.toLocaleString()} 벌
                     </td>
-                    <td className="py-4 px-5">
+                    <td className="py-4 px-5 hidden sm:table-cell">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide ${
                         item.status === '생산중' || item.status === '운송중' || item.status === '통관중'
                           ? 'bg-amber-100 text-amber-800 border border-amber-200'
@@ -158,8 +158,8 @@ export default function BuyerInventory() {
                         {item.status}
                       </span>
                     </td>
-                    <td className="py-4 px-5">
-                      <div className="flex justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <td className="py-4 px-3 sm:px-5">
+                      <div className="flex justify-center gap-1 sm:gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={() => setAdjustingProduct(item)} 
                           className="p-2 text-indigo-500 hover:text-white hover:bg-indigo-500 rounded-xl transition-all shadow-sm bg-white border border-indigo-100"
@@ -307,7 +307,7 @@ export default function BuyerInventory() {
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col md:flex-row">
             
             {/* Left: History Timeline */}
-            <div className="w-full md:w-3/5 bg-slate-50 flex flex-col h-full max-h-[50vh] md:max-h-[90vh]">
+            <div className="w-full md:w-3/5 bg-slate-50 flex flex-col h-[50vh] md:h-auto md:max-h-[90vh]">
               <div className="p-6 border-b border-slate-200 bg-white">
                 <h3 className="font-bold text-slate-800 text-lg flex items-center">
                   <History className="w-5 h-5 mr-2 text-indigo-500" />
@@ -349,8 +349,8 @@ export default function BuyerInventory() {
             </div>
 
             {/* Right: Adjustment Form */}
-            <div className="w-full md:w-2/5 bg-white flex flex-col border-t md:border-t-0 md:border-l border-slate-200 h-full max-h-[50vh] md:max-h-[90vh]">
-              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+            <div className="w-full md:w-2/5 bg-white flex flex-col border-t md:border-t-0 md:border-l border-slate-200 h-fit max-h-[40vh] md:max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-100 shrink-0">
                 <h3 className="font-bold text-slate-800 text-lg flex items-center">
                   <ArrowRightLeft className="w-5 h-5 mr-2 text-blue-500" />
                   수동 재고 조정

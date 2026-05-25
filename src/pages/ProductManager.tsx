@@ -417,8 +417,8 @@ export default function ProductManager() {
                         <span className="text-slate-500 ml-2">({item.size}) - {item.color}</span>
                       </td>
                       <td className="py-4 px-5 text-right font-black text-indigo-600 text-base">{item.factoryStock.toLocaleString()} <span className="text-xs font-normal text-slate-400">벌</span></td>
-                      <td className="py-4 px-5">
-                        <div className="flex justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <td className="py-4 px-3 sm:px-5">
+                        <div className="flex justify-center gap-1 sm:gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => setEditingProduct(item)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-xl transition-all shadow-sm bg-white border border-slate-200">
                             <Edit2 className="w-4 h-4" />
                           </button>
