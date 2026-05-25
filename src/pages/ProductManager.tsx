@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
+import Barcode from 'react-barcode';
 import { PlusCircle, Barcode as BarcodeIcon, Edit2, Trash2, X, Printer, Copy, Settings2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { useStore, Product } from '@/store/useStore';
@@ -82,77 +82,27 @@ export default function ProductManager() {
   const handleCopyImage = async () => {
     if (!barcodeRef.current || !generatedProduct) return;
     try {
-      const svg = barcodeRef.current.querySelector('svg');
-      if (!svg) {
-        alert('QR코드를 찾을 수 없습니다.');
-        return;
-      }
-
-      const xml = new XMLSerializer().serializeToString(svg);
-      const svg64 = btoa(unescape(encodeURIComponent(xml)));
-      const image64 = 'data:image/svg+xml;base64,' + svg64;
-
-      const scale = 4; // 4배 초고해상도
-      const padding = 30 * scale;
-      const textWidth = 300 * scale;
-      const qrSize = 100 * scale;
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = qrSize + textWidth + (padding * 3);
-      canvas.height = Math.max(qrSize, 100 * scale) + (padding * 2);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const img = new Image();
-      
-      const imagePromise = new Promise<Blob>((resolve, reject) => {
-        img.onload = () => {
-          // White background
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          // Draw QR SVG (perfect vector rendering)
-          ctx.imageSmoothingEnabled = true;
-          const barcodeY = (canvas.height - qrSize) / 2;
-          ctx.drawImage(img, padding, barcodeY, qrSize, qrSize);
-
-          // Draw text (native smooth rendering)
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          const textX = padding + qrSize + padding;
-          const centerY = canvas.height / 2;
-
-          // ID
-          ctx.fillStyle = '#1e293b';
-          ctx.font = `bold ${26 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
-          ctx.fillText(generatedProduct.id, textX, centerY - (22 * scale));
-
-          // Category & Type
-          ctx.fillStyle = '#475569';
-          ctx.font = `bold ${18 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
-          ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, textX, centerY + (8 * scale));
-
-          // Size & Color
-          ctx.fillStyle = '#64748b';
-          ctx.font = `${16 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
-          ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, textX, centerY + (36 * scale));
-
+      const clipboardPromise = new Promise<Blob>(async (resolve, reject) => {
+        try {
+          const canvas = await html2canvas(barcodeRef.current as HTMLElement, { 
+            scale: 4,
+            backgroundColor: '#ffffff'
+          });
           canvas.toBlob((blob) => {
             if (blob) resolve(blob);
-            else reject(new Error('이미지 변환 실패'));
+            else reject(new Error('Blob 생성 실패'));
           }, 'image/png');
-        };
-        img.onerror = reject;
-        img.src = image64;
+        } catch (err) {
+          reject(err);
+        }
       });
 
-      const item = new ClipboardItem({ 'image/png': imagePromise });
+      const item = new ClipboardItem({ 'image/png': clipboardPromise });
       await navigator.clipboard.write([item]);
       alert('바코드 이미지가 클립보드에 복사되었습니다. 엑셀이나 메신저에 붙여넣기(Ctrl+V) 하세요.');
-
     } catch (err) {
       console.error(err);
-      alert('이미지를 클립보드에 복사하는 중 오류가 발생했습니다.');
+      alert('클립보드 권한이 없거나 지원하지 않는 환경입니다.');
     }
   };
   
@@ -450,21 +400,24 @@ export default function ProductManager() {
                 <div className="space-y-6 animate-in zoom-in-95 duration-500">
                   <div className="relative">
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl blur opacity-20"></div>
-                    <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto flex items-center justify-center gap-6">
-                      <QRCodeSVG 
+                    <div ref={barcodeRef} className="relative bg-white p-8 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto flex flex-col items-center justify-center text-center">
+                      <Barcode 
                         value={generatedProduct.id} 
-                        size={100}
-                        level="M"
-                        marginSize={2}
+                        width={2.5}
+                        height={60}
+                        displayValue={false}
+                        margin={0}
+                        background="#ffffff"
+                        lineColor="#0f172a"
                       />
-                      <div className="flex flex-col text-left justify-center">
-                        <div className="font-mono font-bold text-slate-800 text-lg tracking-wider">
+                      <div className="flex flex-col items-center justify-center mt-4">
+                        <div className="font-mono font-bold text-slate-800 text-xl tracking-wider">
                           {generatedProduct.id}
                         </div>
-                        <div className="mt-1 text-slate-600 font-semibold text-sm">
+                        <div className="mt-2 text-slate-600 font-bold text-base">
                           [{generatedProduct.data.category}] {generatedProduct.data.type}
                         </div>
-                        <div className="text-slate-500 text-xs mt-1">
+                        <div className="text-slate-500 font-semibold text-sm mt-1">
                           {generatedProduct.data.size} / {generatedProduct.data.color}
                         </div>
                       </div>

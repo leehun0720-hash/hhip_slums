@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useStore, Employee } from '@/store/useStore';
 import { Upload, Plus, Trash2, Printer, Search, Users, Copy, Download } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import Barcode from 'react-barcode';
+import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 
 export default function EmployeeManager() {
@@ -133,77 +134,27 @@ export default function EmployeeManager() {
   const handleCopyBarcode = async () => {
     if (!barcodeRef.current || !selectedEmployee) return;
     try {
-      const svg = barcodeRef.current.querySelector('svg');
-      if (!svg) {
-        alert('QR코드를 찾을 수 없습니다.');
-        return;
-      }
-
-      const xml = new XMLSerializer().serializeToString(svg);
-      const svg64 = btoa(unescape(encodeURIComponent(xml)));
-      const image64 = 'data:image/svg+xml;base64,' + svg64;
-
-      const scale = 4; // 4배 초고해상도
-      const padding = 30 * scale;
-      const textWidth = 250 * scale;
-      const qrSize = 100 * scale;
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = qrSize + textWidth + (padding * 3);
-      canvas.height = Math.max(qrSize, 100 * scale) + (padding * 2);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const img = new Image();
-      
-      const imagePromise = new Promise<Blob>((resolve, reject) => {
-        img.onload = () => {
-          // White background
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          // Draw QR SVG (vector perfect)
-          ctx.imageSmoothingEnabled = true;
-          const barcodeY = (canvas.height - qrSize) / 2;
-          ctx.drawImage(img, padding, barcodeY, qrSize, qrSize);
-
-          // Draw texts below barcode (smooth native rendering)
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          const textX = padding + qrSize + padding;
-          const centerY = canvas.height / 2;
-
-          // Name
-          ctx.fillStyle = '#1e293b';
-          ctx.font = `bold ${26 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
-          ctx.fillText(selectedEmployee.name, textX, centerY - (18 * scale));
-
-          // Department
-          ctx.fillStyle = '#64748b';
-          ctx.font = `bold ${18 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
-          ctx.fillText(selectedEmployee.department, textX, centerY + (12 * scale));
-
-          // ID
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = `${14 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
-          ctx.fillText(selectedEmployee.id, textX, centerY + (36 * scale));
-
+      const clipboardPromise = new Promise<Blob>(async (resolve, reject) => {
+        try {
+          const canvas = await html2canvas(barcodeRef.current as HTMLElement, { 
+            scale: 4,
+            backgroundColor: '#ffffff'
+          });
           canvas.toBlob((blob) => {
             if (blob) resolve(blob);
-            else reject(new Error('이미지 변환 실패'));
+            else reject(new Error('Blob 생성 실패'));
           }, 'image/png');
-        };
-        img.onerror = reject;
-        img.src = image64;
+        } catch (err) {
+          reject(err);
+        }
       });
 
-      const item = new ClipboardItem({ 'image/png': imagePromise });
+      const item = new ClipboardItem({ 'image/png': clipboardPromise });
       await navigator.clipboard.write([item]);
-      alert('사원증 QR코드가 클립보드에 복사되었습니다. (Ctrl+V로 붙여넣기)');
-
+      alert('사원증 바코드가 클립보드에 복사되었습니다. (Ctrl+V로 붙여넣기)');
     } catch (err) {
       console.error(err);
-      alert('클립보드에 복사하는 중 오류가 발생했습니다.');
+      alert('클립보드 권한이 없거나 지원하지 않는 환경입니다.');
     }
   };
 
@@ -315,17 +266,18 @@ export default function EmployeeManager() {
               <h3 className="text-sm font-bold text-slate-500 mb-6 uppercase tracking-widest">사원증 바코드 발급</h3>
               
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center w-full relative group">
-                <div ref={barcodeRef} className="flex items-center justify-center gap-6 text-left">
-                  <QRCodeSVG 
+                <div ref={barcodeRef} className="flex flex-col items-center justify-center text-center p-4 bg-white">
+                  <Barcode 
                     value={selectedEmployee.id}
-                    size={100}
-                    level="M"
-                    marginSize={2}
+                    width={2}
+                    height={50}
+                    displayValue={false}
+                    margin={0}
                   />
-                  <div className="flex flex-col justify-center">
-                    <div className="font-bold text-lg text-slate-800">{selectedEmployee.name}</div>
-                    <div className="text-sm text-slate-500 mt-1">{selectedEmployee.department}</div>
-                    <div className="mt-2 text-xs font-mono text-slate-400">{selectedEmployee.id}</div>
+                  <div className="flex flex-col items-center justify-center mt-4">
+                    <div className="font-bold text-xl text-slate-800">{selectedEmployee.name}</div>
+                    <div className="text-base text-slate-500 mt-1">{selectedEmployee.department}</div>
+                    <div className="mt-2 text-sm font-mono text-slate-400">{selectedEmployee.id}</div>
                   </div>
                 </div>
               </div>
