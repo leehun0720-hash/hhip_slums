@@ -354,15 +354,25 @@ export default function ProductManager() {
                 <div className="space-y-6 animate-in zoom-in-95 duration-500">
                   <div className="relative">
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl blur opacity-20"></div>
-                    <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto">
+                    <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto text-center flex flex-col items-center">
                       <Barcode 
                         value={generatedProduct.id} 
                         width={2.5}
-                        height={70}
+                        height={60}
                         displayValue={false}
                         background="#ffffff"
                         lineColor="#0f172a"
+                        margin={0}
                       />
+                      <div className="mt-3 font-mono font-bold text-slate-800 text-lg tracking-wider">
+                        {generatedProduct.id}
+                      </div>
+                      <div className="mt-1 text-slate-600 font-semibold text-sm">
+                        [{generatedProduct.data.category}] {generatedProduct.data.type}
+                      </div>
+                      <div className="text-slate-500 text-xs">
+                        {generatedProduct.data.size} / {generatedProduct.data.color}
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2 bg-slate-50 rounded-2xl p-5 border border-slate-100">
