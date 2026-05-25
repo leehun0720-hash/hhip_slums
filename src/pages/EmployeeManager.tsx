@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useStore, Employee } from '@/store/useStore';
 import { Upload, Plus, Trash2, Printer, Search, Users, Copy, Download } from 'lucide-react';
-import { QRCodeCanvas } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import * as XLSX from 'xlsx';
 
 export default function EmployeeManager() {
@@ -133,70 +133,73 @@ export default function EmployeeManager() {
   const handleCopyBarcode = async () => {
     if (!barcodeRef.current || !selectedEmployee) return;
     try {
-      const originalCanvas = barcodeRef.current.querySelector('canvas');
-      if (!originalCanvas) {
-        alert('바코드를 찾을 수 없습니다.');
+      const svg = barcodeRef.current.querySelector('svg');
+      if (!svg) {
+        alert('QR코드를 찾을 수 없습니다.');
         return;
       }
 
+      const xml = new XMLSerializer().serializeToString(svg);
+      const svg64 = btoa(unescape(encodeURIComponent(xml)));
+      const image64 = 'data:image/svg+xml;base64,' + svg64;
+
+      const scale = 4; // 4배 초고해상도
+      const padding = 30 * scale;
+      const textWidth = 250 * scale;
+      const qrSize = 100 * scale;
+      
       const canvas = document.createElement('canvas');
+      canvas.width = qrSize + textWidth + (padding * 3);
+      canvas.height = Math.max(qrSize, 100 * scale) + (padding * 2);
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const scale = originalCanvas.width / 100;
-      const padding = 30 * scale;
-      const textWidth = 250 * scale;
+      const img = new Image();
       
-      const originalW = originalCanvas.width;
-      const originalH = originalCanvas.height;
-      
-      canvas.width = originalW + textWidth + (padding * 3);
-      canvas.height = Math.max(originalH, 100 * scale) + (padding * 2);
+      const imagePromise = new Promise<Blob>((resolve, reject) => {
+        img.onload = () => {
+          // White background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // White background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+          // Draw QR SVG (vector perfect)
+          ctx.imageSmoothingEnabled = true;
+          const barcodeY = (canvas.height - qrSize) / 2;
+          ctx.drawImage(img, padding, barcodeY, qrSize, qrSize);
 
-      // Draw barcode (native high-res, smooth)
-      ctx.imageSmoothingEnabled = true;
-      const barcodeY = (canvas.height - originalH) / 2;
-      ctx.drawImage(originalCanvas, padding, barcodeY, originalW, originalH);
+          // Draw texts below barcode (smooth native rendering)
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          const textX = padding + qrSize + padding;
+          const centerY = canvas.height / 2;
 
-      // Draw texts below barcode (smooth native rendering)
-      ctx.imageSmoothingEnabled = true;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      const textX = padding + originalW + padding;
-      const centerY = canvas.height / 2;
+          // Name
+          ctx.fillStyle = '#1e293b';
+          ctx.font = `bold ${26 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+          ctx.fillText(selectedEmployee.name, textX, centerY - (18 * scale));
 
-      // Name
-      ctx.fillStyle = '#1e293b';
-      ctx.font = `bold ${24 * scale}px sans-serif`;
-      ctx.fillText(selectedEmployee.name, textX, centerY - (18 * scale));
+          // Department
+          ctx.fillStyle = '#64748b';
+          ctx.font = `bold ${18 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+          ctx.fillText(selectedEmployee.department, textX, centerY + (12 * scale));
 
-      // Department
-      ctx.fillStyle = '#64748b';
-      ctx.font = `${18 * scale}px sans-serif`;
-      ctx.fillText(selectedEmployee.department, textX, centerY + (12 * scale));
+          // ID
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = `${14 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+          ctx.fillText(selectedEmployee.id, textX, centerY + (36 * scale));
 
-      // ID
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = `${14 * scale}px monospace`;
-      ctx.fillText(selectedEmployee.id, textX, centerY + (36 * scale));
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('이미지 변환 실패'));
+          }, 'image/png');
+        };
+        img.onerror = reject;
+        img.src = image64;
+      });
 
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          alert('이미지 생성에 실패했습니다.');
-          return;
-        }
-        const item = new ClipboardItem({ 'image/png': blob });
-        navigator.clipboard.write([item]).then(() => {
-          alert('사원증 바코드가 클립보드에 복사되었습니다. (Ctrl+V로 붙여넣기)');
-        }).catch(err => {
-          console.error(err);
-          alert('클립보드 권한이 없거나 지원하지 않는 브라우저입니다.');
-        });
-      }, 'image/png');
+      const item = new ClipboardItem({ 'image/png': imagePromise });
+      await navigator.clipboard.write([item]);
+      alert('사원증 QR코드가 클립보드에 복사되었습니다. (Ctrl+V로 붙여넣기)');
 
     } catch (err) {
       console.error(err);
@@ -313,10 +316,9 @@ export default function EmployeeManager() {
               
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center w-full relative group">
                 <div ref={barcodeRef} className="flex items-center justify-center gap-6 text-left">
-                  <QRCodeCanvas 
+                  <QRCodeSVG 
                     value={selectedEmployee.id}
-                    size={400}
-                    style={{ width: 100, height: 100 }}
+                    size={100}
                     level="M"
                     marginSize={2}
                   />

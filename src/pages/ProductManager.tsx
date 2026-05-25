@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { QRCodeCanvas } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { PlusCircle, Barcode as BarcodeIcon, Edit2, Trash2, X, Printer, Copy, Settings2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { useStore, Product } from '@/store/useStore';
@@ -82,70 +82,73 @@ export default function ProductManager() {
   const handleCopyImage = async () => {
     if (!barcodeRef.current || !generatedProduct) return;
     try {
-      const originalCanvas = barcodeRef.current.querySelector('canvas');
-      if (!originalCanvas) {
-        alert('바코드를 찾을 수 없습니다.');
+      const svg = barcodeRef.current.querySelector('svg');
+      if (!svg) {
+        alert('QR코드를 찾을 수 없습니다.');
         return;
       }
 
+      const xml = new XMLSerializer().serializeToString(svg);
+      const svg64 = btoa(unescape(encodeURIComponent(xml)));
+      const image64 = 'data:image/svg+xml;base64,' + svg64;
+
+      const scale = 4; // 4배 초고해상도
+      const padding = 30 * scale;
+      const textWidth = 300 * scale;
+      const qrSize = 100 * scale;
+      
       const canvas = document.createElement('canvas');
+      canvas.width = qrSize + textWidth + (padding * 3);
+      canvas.height = Math.max(qrSize, 100 * scale) + (padding * 2);
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const scale = originalCanvas.width / 100; // 동적 스케일 (예: 4)
-      const padding = 30 * scale;
-      const textWidth = 300 * scale;
+      const img = new Image();
       
-      const originalW = originalCanvas.width;
-      const originalH = originalCanvas.height;
-      
-      canvas.width = originalW + textWidth + (padding * 3);
-      canvas.height = Math.max(originalH, 100 * scale) + (padding * 2);
+      const imagePromise = new Promise<Blob>((resolve, reject) => {
+        img.onload = () => {
+          // White background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // White background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+          // Draw QR SVG (perfect vector rendering)
+          ctx.imageSmoothingEnabled = true;
+          const barcodeY = (canvas.height - qrSize) / 2;
+          ctx.drawImage(img, padding, barcodeY, qrSize, qrSize);
 
-      // Draw QR code (native high-res, smooth)
-      ctx.imageSmoothingEnabled = true;
-      const barcodeY = (canvas.height - originalH) / 2;
-      ctx.drawImage(originalCanvas, padding, barcodeY, originalW, originalH);
+          // Draw text (native smooth rendering)
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          const textX = padding + qrSize + padding;
+          const centerY = canvas.height / 2;
 
-      // Draw text (native smooth rendering at large font size)
-      ctx.imageSmoothingEnabled = true;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      const textX = padding + originalW + padding;
-      const centerY = canvas.height / 2;
+          // ID
+          ctx.fillStyle = '#1e293b';
+          ctx.font = `bold ${26 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+          ctx.fillText(generatedProduct.id, textX, centerY - (22 * scale));
 
-      // ID
-      ctx.fillStyle = '#1e293b';
-      ctx.font = `bold ${24 * scale}px monospace`;
-      ctx.fillText(generatedProduct.id, textX, centerY - (22 * scale));
+          // Category & Type
+          ctx.fillStyle = '#475569';
+          ctx.font = `bold ${18 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+          ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, textX, centerY + (8 * scale));
 
-      // Category & Type
-      ctx.fillStyle = '#475569';
-      ctx.font = `bold ${18 * scale}px sans-serif`;
-      ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, textX, centerY + (8 * scale));
+          // Size & Color
+          ctx.fillStyle = '#64748b';
+          ctx.font = `${16 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+          ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, textX, centerY + (36 * scale));
 
-      // Size & Color
-      ctx.fillStyle = '#64748b';
-      ctx.font = `${16 * scale}px sans-serif`;
-      ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, textX, centerY + (36 * scale));
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('이미지 변환 실패'));
+          }, 'image/png');
+        };
+        img.onerror = reject;
+        img.src = image64;
+      });
 
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          alert('이미지 생성에 실패했습니다.');
-          return;
-        }
-        const item = new ClipboardItem({ 'image/png': blob });
-        navigator.clipboard.write([item]).then(() => {
-          alert('바코드 이미지가 클립보드에 복사되었습니다. 엑셀이나 메신저에 붙여넣기(Ctrl+V) 하세요.');
-        }).catch(err => {
-          console.error(err);
-          alert('클립보드 권한이 없거나 지원하지 않는 브라우저입니다.');
-        });
-      }, 'image/png');
+      const item = new ClipboardItem({ 'image/png': imagePromise });
+      await navigator.clipboard.write([item]);
+      alert('바코드 이미지가 클립보드에 복사되었습니다. 엑셀이나 메신저에 붙여넣기(Ctrl+V) 하세요.');
 
     } catch (err) {
       console.error(err);
@@ -448,10 +451,9 @@ export default function ProductManager() {
                   <div className="relative">
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl blur opacity-20"></div>
                     <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto flex items-center justify-center gap-6">
-                      <QRCodeCanvas 
+                      <QRCodeSVG 
                         value={generatedProduct.id} 
-                        size={400}
-                        style={{ width: 100, height: 100 }}
+                        size={100}
                         level="M"
                         marginSize={2}
                       />
