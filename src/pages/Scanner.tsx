@@ -7,9 +7,15 @@ import { useStore, Employee } from '@/store/useStore';
 export default function Scanner() {
   const { role, scanProduct, employees } = useStore();
   const [scanResult, setScanResult] = useState<{ id: string, message: string, success: boolean, type: 'EMPLOYEE' | 'PRODUCT' } | null>(null);
-  const [scanMode, setScanMode] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
+  const [scanMode, setScanMode] = useState<'INBOUND' | 'OUTBOUND' | 'FACTORY_OUTBOUND'>('INBOUND');
   const [scannedEmployee, setScannedEmployee] = useState<Employee | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  // 최신 상태를 콜백에서 접근할 수 있도록 ref 사용 (카메라 재시작 방지)
+  const stateRef = useRef({ role, scanMode, scannedEmployee, employees, scanProduct });
+  useEffect(() => {
+    stateRef.current = { role, scanMode, scannedEmployee, employees, scanProduct };
+  });
 
   useEffect(() => {
     // 실제 카메라 환경을 위해 html5-qrcode 스캐너 초기화
@@ -36,20 +42,16 @@ export default function Scanner() {
 
     scanner.render(
       (decodedText) => {
-        // 스캔 성공 시 콜백
+        const { role, scanMode, scannedEmployee, employees, scanProduct } = stateRef.current;
         
         let storeMode: 'FACTORY_OUTBOUND' | 'BUYER_INBOUND' | 'BUYER_OUTBOUND';
-        if (role === 'FACTORY' || scanMode === 'FACTORY_OUTBOUND' as any) {
+        if (role === 'FACTORY' || scanMode === 'FACTORY_OUTBOUND') {
           storeMode = 'FACTORY_OUTBOUND';
         } else {
           storeMode = scanMode === 'INBOUND' ? 'BUYER_INBOUND' : 'BUYER_OUTBOUND';
         }
 
         if (storeMode === 'BUYER_OUTBOUND') {
-           // We need an employee first
-           // Use a state ref or function updater if scannedEmployee is stale in closure, 
-           // but we can just use the latest state if we re-bind effect, OR just look it up.
-           // Actually, since this is in useEffect with scannedEmployee in deps, it works.
            if (!scannedEmployee) {
               const emp = employees.find(e => e.id === decodedText);
               if (emp) {
@@ -82,17 +84,16 @@ export default function Scanner() {
             type: 'PRODUCT'
         });
         
-        scanner.pause(true); // 스캔 후 일시정지 (사용자 확인 위해)
+        scanner.pause(true); // 스캔 후 일시정지
       },
-      (error) => {
-      }
+      (error) => {}
     );
 
     return () => {
       scanner.clear().catch(console.error);
       scannerRef.current = null;
     };
-  }, [role, scanMode, scanProduct, scannedEmployee, employees]);
+  }, []); // 의존성 배열 비움: 컴포넌트 마운트 시 한 번만 실행
 
   const resetScanner = () => {
     setScanResult(null);
@@ -121,7 +122,7 @@ export default function Scanner() {
         <div className="bg-slate-100 p-1 rounded-xl flex mb-6 shadow-inner overflow-x-auto hide-scrollbar">
           {(role === 'ADMIN') && (
              <button
-              onClick={() => setScanMode('FACTORY_OUTBOUND' as any)}
+              onClick={() => setScanMode('FACTORY_OUTBOUND')}
               className={cn(
                 "flex-1 py-3 px-4 rounded-lg text-sm font-semibold flex items-center justify-center transition-all min-w-[max-content]",
                 scanMode === 'FACTORY_OUTBOUND' 
@@ -174,7 +175,9 @@ export default function Scanner() {
       <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xl shadow-slate-200/50 mb-6 relative">
         <div className="p-4 bg-slate-900 text-white flex justify-between items-center text-sm font-medium">
           <span>
-            {role === 'FACTORY' ? '납품(출고) 모드' : (scanMode === 'INBOUND' ? '입고 모드' : '직원 지급 모드')}
+            {role === 'FACTORY' || scanMode === 'FACTORY_OUTBOUND' 
+              ? '업체 (공장) 납품 스캔 모드' 
+              : (scanMode === 'INBOUND' ? '매입처 입고 스캔 모드' : '직원 지급 모드')}
           </span>
           <span className="flex items-center text-slate-400 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2"></span>
