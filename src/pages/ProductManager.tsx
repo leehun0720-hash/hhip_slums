@@ -92,12 +92,12 @@ export default function ProductManager() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const scale = 4; // 4배 초고해상도
+      const scale = originalCanvas.width / 100; // 동적 스케일 (예: 4)
       const padding = 30 * scale;
       const textWidth = 300 * scale;
       
-      const originalW = originalCanvas.width * scale;
-      const originalH = originalCanvas.height * scale;
+      const originalW = originalCanvas.width;
+      const originalH = originalCanvas.height;
       
       canvas.width = originalW + textWidth + (padding * 3);
       canvas.height = Math.max(originalH, 100 * scale) + (padding * 2);
@@ -106,8 +106,8 @@ export default function ProductManager() {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw barcode (sharp nearest-neighbor)
-      ctx.imageSmoothingEnabled = false;
+      // Draw QR code (native high-res, smooth)
+      ctx.imageSmoothingEnabled = true;
       const barcodeY = (canvas.height - originalH) / 2;
       ctx.drawImage(originalCanvas, padding, barcodeY, originalW, originalH);
 
@@ -450,7 +450,8 @@ export default function ProductManager() {
                     <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto flex items-center justify-center gap-6">
                       <QRCodeCanvas 
                         value={generatedProduct.id} 
-                        size={100}
+                        size={400}
+                        style={{ width: 100, height: 100 }}
                         level="M"
                         marginSize={2}
                       />

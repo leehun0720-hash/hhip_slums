@@ -143,12 +143,12 @@ export default function EmployeeManager() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const scale = 4; // 4배 초고해상도
+      const scale = originalCanvas.width / 100;
       const padding = 30 * scale;
       const textWidth = 250 * scale;
       
-      const originalW = originalCanvas.width * scale;
-      const originalH = originalCanvas.height * scale;
+      const originalW = originalCanvas.width;
+      const originalH = originalCanvas.height;
       
       canvas.width = originalW + textWidth + (padding * 3);
       canvas.height = Math.max(originalH, 100 * scale) + (padding * 2);
@@ -157,8 +157,8 @@ export default function EmployeeManager() {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw barcode (sharp nearest-neighbor)
-      ctx.imageSmoothingEnabled = false;
+      // Draw barcode (native high-res, smooth)
+      ctx.imageSmoothingEnabled = true;
       const barcodeY = (canvas.height - originalH) / 2;
       ctx.drawImage(originalCanvas, padding, barcodeY, originalW, originalH);
 
@@ -315,7 +315,8 @@ export default function EmployeeManager() {
                 <div ref={barcodeRef} className="flex items-center justify-center gap-6 text-left">
                   <QRCodeCanvas 
                     value={selectedEmployee.id}
-                    size={100}
+                    size={400}
+                    style={{ width: 100, height: 100 }}
                     level="M"
                     marginSize={2}
                   />
