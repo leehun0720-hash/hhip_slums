@@ -13,7 +13,7 @@ const STATUS_ICONS = {
 };
 
 export default function ProcessManager() {
-  const { inventory, updateProductStatus, categories } = useStore();
+  const { inventory, updateProductStatus, categories, user } = useStore();
 
   // 제품 분류별로 그룹화
   const groupedInventory = useMemo(() => {
@@ -110,7 +110,7 @@ export default function ProcessManager() {
                           <button
                             onClick={() => {
                               if (confirm('납품을 완료 처리하고 구매자 재고에 추가하시겠습니까?')) {
-                                useStore.getState().completeDelivery(item.id);
+                                useStore.getState().completeDelivery(item.id, user?.email || 'Unknown');
                               }
                             }}
                             className="flex flex-col items-center justify-center w-20 h-20 rounded-xl bg-emerald-50 border-2 border-emerald-500 text-emerald-700 shadow-sm hover:bg-emerald-100 transition-all duration-200"

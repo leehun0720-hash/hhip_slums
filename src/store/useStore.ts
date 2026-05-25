@@ -4,6 +4,16 @@ import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 export type Role = 'FACTORY' | 'BUYER' | 'ADMIN' | 'PENDING' | 'LOADING';
 export type ProductStatus = '생산중' | '운송중' | '통관중' | '납품대기' | '정상' | '부족';
+export type TransactionType = 'IN' | 'OUT' | 'ADJUST' | 'INIT';
+
+export interface Transaction {
+  id: string;
+  date: string;
+  type: TransactionType;
+  amount: number;
+  reason: string;
+  by: string; // user role or email
+}
 
 export interface Product {
   id: string;
@@ -17,6 +27,7 @@ export interface Product {
   leadTimeStart: string | null;
   leadTimeEnd: string | null;
   status: ProductStatus;
+  history: Transaction[];
 }
 
 export interface StoreState {
@@ -34,7 +45,8 @@ export interface StoreState {
   updateProduct: (id: string, updated: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   updateProductStatus: (id: string, status: ProductStatus) => void;
-  completeDelivery: (id: string) => void;
+  adjustStock: (id: string, amount: number, reason: string, by: string) => void;
+  completeDelivery: (id: string, by: string) => void;
   scanProduct: (id: string, mode: 'FACTORY_OUTBOUND' | 'BUYER_INBOUND' | 'BUYER_OUTBOUND') => { success: boolean; message: string };
   notifications: string[];
   addNotification: (path: string) => void;
@@ -42,9 +54,9 @@ export interface StoreState {
 }
 
 const initialInventory: Product[] = [
-  { id: 'PRD-0001', category: '작업복', type: '상의', size: 'L (100)', color: '네이비', maxStock: 100, buyerStock: 25, factoryStock: 50, leadTimeStart: '2026-03-01', leadTimeEnd: '2026-05-30', status: '생산중' },
-  { id: 'PRD-0002', category: '작업복', type: '하의', size: '32', color: '네이비', maxStock: 100, buyerStock: 80, factoryStock: 0, leadTimeStart: null, leadTimeEnd: null, status: '정상' },
-  { id: 'PRD-0003', category: '근무복', type: '상의', size: 'M (95)', color: '화이트', maxStock: 50, buyerStock: 10, factoryStock: 30, leadTimeStart: '2026-04-15', leadTimeEnd: '2026-07-14', status: '생산중' },
+  { id: 'PRD-0001', category: '작업복', type: '상의', size: 'L (100)', color: '네이비', maxStock: 100, buyerStock: 25, factoryStock: 50, leadTimeStart: '2026-03-01', leadTimeEnd: '2026-05-30', status: '생산중', history: [] },
+  { id: 'PRD-0002', category: '작업복', type: '하의', size: '32', color: '네이비', maxStock: 100, buyerStock: 80, factoryStock: 0, leadTimeStart: null, leadTimeEnd: null, status: '정상', history: [] },
+  { id: 'PRD-0003', category: '근무복', type: '상의', size: 'M (95)', color: '화이트', maxStock: 50, buyerStock: 10, factoryStock: 30, leadTimeStart: '2026-04-15', leadTimeEnd: '2026-07-14', status: '생산중', history: [] },
 ];
 
 export const useStore = create<StoreState>((set) => ({
@@ -63,8 +75,20 @@ export const useStore = create<StoreState>((set) => ({
   })),
   summary: { totalEmployees: 450, totalInventoryInStock: 2150 },
   addProduct: (p) => {
-    setDoc(doc(db, 'products', p.id), p).catch(console.error);
-    set((state) => ({ inventory: [...state.inventory, p] }));
+    // Ensure history is initialized
+    const newProduct = { ...p, history: p.history || [] };
+    if (newProduct.history.length === 0) {
+      newProduct.history.push({
+        id: Math.random().toString(36).substring(2, 9),
+        date: new Date().toISOString(),
+        type: 'INIT',
+        amount: newProduct.factoryStock,
+        reason: '초기 생산 등록',
+        by: 'System'
+      });
+    }
+    setDoc(doc(db, 'products', p.id), newProduct).catch(console.error);
+    set((state) => ({ inventory: [...state.inventory, newProduct] }));
   },
   updateProduct: (id, updated) => {
     updateDoc(doc(db, 'products', id), updated).catch(console.error);
@@ -84,12 +108,50 @@ export const useStore = create<StoreState>((set) => ({
       inventory: state.inventory.map((item) => (item.id === id ? { ...item, status } : item)),
     }));
   },
-  completeDelivery: async (id) => {
+  adjustStock: async (id, amount, reason, by) => {
+    const item = useStore.getState().inventory.find(i => i.id === id);
+    if (!item) return;
+    
+    const newTx: Transaction = {
+      id: Math.random().toString(36).substring(2, 9),
+      date: new Date().toISOString(),
+      type: 'ADJUST',
+      amount,
+      reason,
+      by
+    };
+    
+    const newBuyerStock = Number(item.buyerStock) + Number(amount);
+    const newHistory = [...(item.history || []), newTx];
+    
+    try {
+      await updateDoc(doc(db, 'products', id), { buyerStock: newBuyerStock, history: newHistory });
+    } catch (err) {
+      console.error(err);
+      return;
+    }
+    
+    set((state) => ({
+      inventory: state.inventory.map((i) => (i.id === id ? { ...i, buyerStock: newBuyerStock, history: newHistory } : i)),
+    }));
+  },
+  completeDelivery: async (id, by) => {
     const item = useStore.getState().inventory.find(i => i.id === id);
     if (!item) return;
 
     const newBuyerStock = Number(item.buyerStock) + Number(item.factoryStock);
-    const updatedStock = { buyerStock: newBuyerStock, factoryStock: 0, status: '정상' as ProductStatus };
+    
+    const newTx: Transaction = {
+      id: Math.random().toString(36).substring(2, 9),
+      date: new Date().toISOString(),
+      type: 'IN',
+      amount: item.factoryStock,
+      reason: '공장 납품 완료',
+      by
+    };
+    
+    const newHistory = [...(item.history || []), newTx];
+    const updatedStock = { buyerStock: newBuyerStock, factoryStock: 0, status: '정상' as ProductStatus, history: newHistory };
     
     try {
       await updateDoc(doc(db, 'products', id), updatedStock);
@@ -97,11 +159,11 @@ export const useStore = create<StoreState>((set) => ({
     } catch (err: any) {
       console.error('Delivery update error:', err);
       alert('재고 업데이트에 실패했습니다: ' + err.message);
-      return; // Do not update local state if DB update fails
+      return; 
     }
 
     set((state) => ({
-      inventory: state.inventory.map((i) => (i.id === id ? { ...i, buyerStock: newBuyerStock, factoryStock: 0, status: '정상' } : i)),
+      inventory: state.inventory.map((i) => (i.id === id ? { ...i, ...updatedStock } : i)),
     }));
   },
   notifications: [],
@@ -118,11 +180,23 @@ export const useStore = create<StoreState>((set) => ({
         if (!id.includes(item.id)) return item;
 
         updateId = item.id;
+        const currentHistory = item.history || [];
+        
         if (mode === 'FACTORY_OUTBOUND') {
           if (item.factoryStock > 0) {
             resultSuccess = true;
             resultMessage = `[${item.id}] 공장 출고 성공! 매입자로 1건 납품 되었습니다.`;
-            pendingUpdate = { factoryStock: item.factoryStock - 1 };
+            
+            const newTx: Transaction = {
+              id: Math.random().toString(36).substring(2, 9),
+              date: new Date().toISOString(),
+              type: 'IN',
+              amount: 1,
+              reason: '스캐너: 매입자 직접 입고',
+              by: 'Scanner'
+            };
+            
+            pendingUpdate = { factoryStock: item.factoryStock - 1, buyerStock: item.buyerStock + 1, history: [...currentHistory, newTx] };
             return { ...item, ...pendingUpdate };
           } else {
             resultMessage = `[${item.id}] 공장 재고가 부족하여 출고할 수 없습니다.`;
@@ -130,13 +204,31 @@ export const useStore = create<StoreState>((set) => ({
         } else if (mode === 'BUYER_INBOUND') {
           resultSuccess = true;
           resultMessage = `[${item.id}] 매입 입고 확인! 재고 1건이 추가되었습니다.`;
-          pendingUpdate = { buyerStock: item.buyerStock + 1 };
+          
+          const newTx: Transaction = {
+             id: Math.random().toString(36).substring(2, 9),
+             date: new Date().toISOString(),
+             type: 'IN',
+             amount: 1,
+             reason: '스캐너: 입고 처리',
+             by: 'Scanner'
+          };
+          pendingUpdate = { buyerStock: item.buyerStock + 1, history: [...currentHistory, newTx] };
           return { ...item, ...pendingUpdate };
         } else if (mode === 'BUYER_OUTBOUND') {
           if (item.buyerStock > 0) {
             resultSuccess = true;
             resultMessage = `[${item.id}] 직원 지급 (출고) 완료! 재고가 1건 차감되었습니다.`;
-            pendingUpdate = { buyerStock: item.buyerStock - 1 };
+            
+            const newTx: Transaction = {
+             id: Math.random().toString(36).substring(2, 9),
+             date: new Date().toISOString(),
+             type: 'OUT',
+             amount: -1,
+             reason: '스캐너: 직원 지급',
+             by: 'Scanner'
+            };
+            pendingUpdate = { buyerStock: item.buyerStock - 1, history: [...currentHistory, newTx] };
             return { ...item, ...pendingUpdate };
           } else {
             resultMessage = `[${item.id}] 매입처 재고가 부족하여 출고할 수 없습니다.`;
