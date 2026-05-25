@@ -94,21 +94,29 @@ export default function ProductManager() {
 
       const padding = 30;
       const textSpace = 90;
+      const scale = 3; // 3배 해상도
       
-      canvas.width = Math.max(originalCanvas.width, 300) + (padding * 2);
-      canvas.height = originalCanvas.height + textSpace + (padding * 2);
+      const baseWidth = Math.max(originalCanvas.width, 300) + (padding * 2);
+      const baseHeight = originalCanvas.height + textSpace + (padding * 2);
+
+      canvas.width = baseWidth * scale;
+      canvas.height = baseHeight * scale;
+      ctx.scale(scale, scale);
+      
+      // 이미지 렌더링 최적화 (흐림 방지)
+      ctx.imageSmoothingEnabled = false;
 
       // White background
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, baseWidth, baseHeight);
 
       // Center the barcode horizontally
-      const barcodeX = (canvas.width - originalCanvas.width) / 2;
-      ctx.drawImage(originalCanvas, barcodeX, padding);
+      const barcodeX = (baseWidth - originalCanvas.width) / 2;
+      ctx.drawImage(originalCanvas, barcodeX, padding, originalCanvas.width, originalCanvas.height);
 
       // Draw texts below barcode
       ctx.textAlign = 'center';
-      const centerX = canvas.width / 2;
+      const centerX = baseWidth / 2;
       let y = padding + originalCanvas.height + 30;
 
       // ID
