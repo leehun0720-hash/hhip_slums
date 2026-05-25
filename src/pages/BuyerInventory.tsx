@@ -8,7 +8,7 @@ const BOTTOM_SIZES = Array.from({ length: 15 }, (_, i) => `${26 + i}`);
 const getSizes = (type: string) => type === '하의' ? BOTTOM_SIZES : TOP_SIZES;
 
 export default function BuyerInventory() {
-  const { inventory, categories, updateProduct, deleteProduct, adjustStock, user } = useStore();
+  const { inventory, categories, updateProduct, deleteProduct, adjustStock, user, employees } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
@@ -17,6 +17,7 @@ export default function BuyerInventory() {
   const [txMode, setTxMode] = useState<'IN' | 'OUT' | 'SET'>('IN');
   const [txInput, setTxInput] = useState<number>(0);
   const [adjustReason, setAdjustReason] = useState<string>('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
   const filteredInventory = inventory.filter(item => 
     item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -42,13 +43,24 @@ export default function BuyerInventory() {
       const email = user?.email || 'Unknown User';
       let finalAmount = 0;
       let finalReason = adjustReason.trim() || '';
+      let empId = '';
+      let empName = '';
 
       if (txMode === 'IN') {
         finalAmount = txInput;
         if (!finalReason) finalReason = '입고 등록';
       } else if (txMode === 'OUT') {
+        if (!selectedEmployeeId) {
+          alert('지급할 직원을 선택해주세요.');
+          return;
+        }
+        const emp = employees.find(e => e.id === selectedEmployeeId);
+        if (emp) {
+          empId = emp.id;
+          empName = emp.name;
+        }
         finalAmount = -txInput;
-        if (!finalReason) finalReason = '출고 등록';
+        if (!finalReason) finalReason = '수동 출고: 직원 지급';
       } else if (txMode === 'SET') {
         finalAmount = txInput - adjustingProduct.buyerStock;
         if (!finalReason) finalReason = '이월 및 실사조정';
@@ -59,7 +71,7 @@ export default function BuyerInventory() {
         return;
       }
 
-      adjustStock(adjustingProduct.id, finalAmount, finalReason, email);
+      adjustStock(adjustingProduct.id, finalAmount, finalReason, email, empId, empName);
       
       // Update local state of adjustingProduct so modal shows updated history immediately
       const newTx: Transaction = {
@@ -68,7 +80,9 @@ export default function BuyerInventory() {
         type: txMode === 'IN' ? 'IN' : txMode === 'OUT' ? 'OUT' : 'ADJUST',
         amount: finalAmount,
         reason: finalReason,
-        by: email
+        by: email,
+        employeeId: empId,
+        employeeName: empName
       };
       setAdjustingProduct({
         ...adjustingProduct,
@@ -78,6 +92,7 @@ export default function BuyerInventory() {
 
       setTxInput(0);
       setAdjustReason('');
+      setSelectedEmployeeId('');
     } else {
       alert('0보다 큰 수량을 입력해주세요.');
     }
@@ -357,6 +372,11 @@ export default function BuyerInventory() {
                             </span>
                           </div>
                           <p className="text-sm text-slate-700 font-medium">{tx.reason}</p>
+                          {tx.employeeName && (
+                            <p className="text-xs text-indigo-600 font-semibold mt-1 bg-indigo-50 px-2 py-1 rounded inline-block">
+                              대상: {tx.employeeName}
+                            </p>
+                          )}
                           <p className="text-[10px] text-slate-400 mt-1.5 text-right">담당: {tx.by}</p>
                         </div>
                       </div>
@@ -432,6 +452,23 @@ export default function BuyerInventory() {
                         : '양수(0보다 큰 수)로 입력하세요.'}
                     </p>
                   </div>
+                  
+                  {txMode === 'OUT' && (
+                    <div className="animate-in fade-in slide-in-from-top-2">
+                      <label className="block text-xs font-bold text-slate-700 mb-2">출고 대상 (직원)</label>
+                      <select 
+                        className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-shadow"
+                        value={selectedEmployeeId}
+                        onChange={e => setSelectedEmployeeId(e.target.value)}
+                      >
+                        <option value="">-- 지급할 직원 선택 --</option>
+                        {employees.map(emp => (
+                          <option key={emp.id} value={emp.id}>{emp.name} ({emp.department})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">사유 (선택)</label>
                      <input 

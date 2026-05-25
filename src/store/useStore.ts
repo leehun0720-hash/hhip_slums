@@ -13,6 +13,15 @@ export interface Transaction {
   amount: number;
   reason: string;
   by: string; // user role or email
+  employeeId?: string; // Optional: Linked employee for outbound
+  employeeName?: string;
+}
+
+export interface Employee {
+  id: string; // Format: EMP-0001
+  name: string;
+  department: string;
+  createdAt: string;
 }
 
 export interface Product {
@@ -45,12 +54,19 @@ export interface StoreState {
   updateProduct: (id: string, updated: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   updateProductStatus: (id: string, status: ProductStatus) => void;
-  adjustStock: (id: string, amount: number, reason: string, by: string) => void;
+  adjustStock: (id: string, amount: number, reason: string, by: string, employeeId?: string, employeeName?: string) => void;
   completeDelivery: (id: string, by: string) => void;
-  scanProduct: (id: string, mode: 'FACTORY_OUTBOUND' | 'BUYER_INBOUND' | 'BUYER_OUTBOUND') => { success: boolean; message: string };
+  scanProduct: (id: string, mode: 'FACTORY_OUTBOUND' | 'BUYER_INBOUND' | 'BUYER_OUTBOUND', scannedEmployeeId?: string) => { success: boolean; message: string };
   notifications: string[];
   addNotification: (path: string) => void;
   removeNotification: (path: string) => void;
+
+  // Employee State
+  employees: Employee[];
+  setEmployees: (employees: Employee[]) => void;
+  addEmployee: (employee: Employee) => void;
+  deleteEmployee: (id: string) => void;
+  bulkAddEmployees: (employees: Employee[]) => void;
 }
 
 const initialInventory: Product[] = [
@@ -74,6 +90,22 @@ export const useStore = create<StoreState>((set) => ({
     categories: state.categories.filter(c => c !== category) 
   })),
   summary: { totalEmployees: 450, totalInventoryInStock: 2150 },
+  employees: [],
+  setEmployees: (employees) => set({ employees }),
+  addEmployee: (employee) => {
+    setDoc(doc(db, 'employees', employee.id), employee).catch(console.error);
+    set((state) => ({ employees: [...state.employees, employee] }));
+  },
+  deleteEmployee: (id) => {
+    deleteDoc(doc(db, 'employees', id)).catch(console.error);
+    set((state) => ({ employees: state.employees.filter((e) => e.id !== id) }));
+  },
+  bulkAddEmployees: (newEmployees) => {
+    newEmployees.forEach(emp => {
+      setDoc(doc(db, 'employees', emp.id), emp).catch(console.error);
+    });
+    set((state) => ({ employees: [...state.employees, ...newEmployees] }));
+  },
   addProduct: (p) => {
     // Ensure history is initialized
     const newProduct = { ...p, history: p.history || [] };
@@ -108,7 +140,7 @@ export const useStore = create<StoreState>((set) => ({
       inventory: state.inventory.map((item) => (item.id === id ? { ...item, status } : item)),
     }));
   },
-  adjustStock: async (id, amount, reason, by) => {
+  adjustStock: async (id, amount, reason, by, employeeId, employeeName) => {
     const item = useStore.getState().inventory.find(i => i.id === id);
     if (!item) return;
     
@@ -118,7 +150,9 @@ export const useStore = create<StoreState>((set) => ({
       type: 'ADJUST',
       amount,
       reason,
-      by
+      by,
+      employeeId,
+      employeeName
     };
     
     const newBuyerStock = Number(item.buyerStock) + Number(amount);
@@ -169,7 +203,7 @@ export const useStore = create<StoreState>((set) => ({
   notifications: [],
   addNotification: (path) => set((state) => ({ notifications: Array.from(new Set([...state.notifications, path])) })),
   removeNotification: (path) => set((state) => ({ notifications: state.notifications.filter(p => p !== path) })),
-  scanProduct: (id, mode) => {
+  scanProduct: (id, mode, scannedEmployeeId) => {
     let resultMessage = '';
     let resultSuccess = false;
     let pendingUpdate: any = null;
@@ -218,15 +252,28 @@ export const useStore = create<StoreState>((set) => ({
         } else if (mode === 'BUYER_OUTBOUND') {
           if (item.buyerStock > 0) {
             resultSuccess = true;
-            resultMessage = `[${item.id}] 직원 지급 (출고) 완료! 재고가 1건 차감되었습니다.`;
+            
+            let employeeInfo = {};
+            if (scannedEmployeeId) {
+               const emp = state.employees.find(e => e.id === scannedEmployeeId);
+               if (emp) {
+                 employeeInfo = { employeeId: emp.id, employeeName: emp.name };
+                 resultMessage = `[${item.id}] ${emp.name}(${emp.department}) 직원에게 지급 (출고) 완료!`;
+               } else {
+                 resultMessage = `[${item.id}] 등록되지 않은 직원 ID입니다. 재고만 차감됩니다.`;
+               }
+            } else {
+               resultMessage = `[${item.id}] 직원 지급 (출고) 완료! 재고가 1건 차감되었습니다.`;
+            }
             
             const newTx: Transaction = {
              id: Math.random().toString(36).substring(2, 9),
              date: new Date().toISOString(),
              type: 'OUT',
              amount: -1,
-             reason: '스캐너: 직원 지급',
-             by: 'Scanner'
+             reason: scannedEmployeeId ? '스캐너: 직원 지급' : '스캐너: 일반 출고',
+             by: 'Scanner',
+             ...employeeInfo
             };
             pendingUpdate = { buyerStock: item.buyerStock - 1, history: [...currentHistory, newTx] };
             return { ...item, ...pendingUpdate };

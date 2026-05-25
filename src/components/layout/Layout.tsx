@@ -1,4 +1,4 @@
-import { Box, LayoutDashboard, Barcode, ScanLine, FileBarChart, UserSquare2, Factory, Activity, LogOut, Settings, Key, FileText } from 'lucide-react';
+import { Box, LayoutDashboard, Barcode, ScanLine, FileBarChart, UserSquare2, Factory, Activity, LogOut, Settings, Key, FileText, Users } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
@@ -57,6 +57,7 @@ export default function Layout() {
       items: [
         { to: '/buyer-order', label: '신규 발주', icon: Barcode },
         { to: '/buyer-inventory', label: '재고 및 내역', icon: Activity },
+        { to: '/employee', label: '직원 관리', icon: Users },
       ]
     },
     {

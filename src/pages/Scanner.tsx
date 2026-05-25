@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { PackagePlus, PackageMinus, RefreshCw, SendToBack } from 'lucide-react';
+import { PackagePlus, PackageMinus, RefreshCw, SendToBack, UserCheck, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useStore } from '@/store/useStore';
+import { useStore, Employee } from '@/store/useStore';
 
 export default function Scanner() {
-  const { role, scanProduct } = useStore();
-  const [scanResult, setScanResult] = useState<{ id: string, message: string, success: boolean } | null>(null);
+  const { role, scanProduct, employees } = useStore();
+  const [scanResult, setScanResult] = useState<{ id: string, message: string, success: boolean, type: 'EMPLOYEE' | 'PRODUCT' } | null>(null);
   const [scanMode, setScanMode] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
+  const [scannedEmployee, setScannedEmployee] = useState<Employee | null>(null);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
     // 실제 카메라 환경을 위해 html5-qrcode 스캐너 초기화
@@ -30,43 +32,77 @@ export default function Scanner() {
       },
       /* verbose= */ false
     );
+    scannerRef.current = scanner;
 
     scanner.render(
       (decodedText) => {
         // 스캔 성공 시 콜백
         
         let storeMode: 'FACTORY_OUTBOUND' | 'BUYER_INBOUND' | 'BUYER_OUTBOUND';
-        if (role === 'FACTORY' || scanMode === 'FACTORY_OUTBOUND') {
+        if (role === 'FACTORY' || scanMode === 'FACTORY_OUTBOUND' as any) {
           storeMode = 'FACTORY_OUTBOUND';
         } else {
           storeMode = scanMode === 'INBOUND' ? 'BUYER_INBOUND' : 'BUYER_OUTBOUND';
         }
 
-        const result = scanProduct(decodedText, storeMode);
+        if (storeMode === 'BUYER_OUTBOUND') {
+           // We need an employee first
+           // Use a state ref or function updater if scannedEmployee is stale in closure, 
+           // but we can just use the latest state if we re-bind effect, OR just look it up.
+           // Actually, since this is in useEffect with scannedEmployee in deps, it works.
+           if (!scannedEmployee) {
+              const emp = employees.find(e => e.id === decodedText);
+              if (emp) {
+                 setScannedEmployee(emp);
+                 setScanResult({
+                     id: decodedText,
+                     message: `${emp.name}(${emp.department}) 사원 인식 성공! 이제 유니폼을 스캔하세요.`,
+                     success: true,
+                     type: 'EMPLOYEE'
+                 });
+              } else {
+                 setScanResult({
+                     id: decodedText,
+                     message: `등록되지 않은 사번입니다: ${decodedText}. 직원을 먼저 스캔해주세요.`,
+                     success: false,
+                     type: 'EMPLOYEE'
+                 });
+              }
+              scanner.pause(true);
+              return;
+           }
+        }
+
+        const result = scanProduct(decodedText, storeMode, scannedEmployee?.id);
         
         setScanResult({
             id: decodedText,
             message: result.message,
-            success: result.success
+            success: result.success,
+            type: 'PRODUCT'
         });
         
         scanner.pause(true); // 스캔 후 일시정지 (사용자 확인 위해)
       },
       (error) => {
-        // 스캔 에러는 매 프레임 발생하므로 보통 무시
-        // console.warn(error);
       }
     );
 
-    // 컴포넌트 언마운트 시 스캐너 정리
     return () => {
       scanner.clear().catch(console.error);
+      scannerRef.current = null;
     };
-  }, [role, scanMode, scanProduct]);
+  }, [role, scanMode, scanProduct, scannedEmployee, employees]);
 
   const resetScanner = () => {
     setScanResult(null);
-    window.location.reload(); 
+    if (scannerRef.current) {
+      try {
+        scannerRef.current.resume();
+      } catch (e) {
+        // In some states resume might throw, fallback to ignoring
+      }
+    }
   };
 
   return (
@@ -138,13 +174,36 @@ export default function Scanner() {
       <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xl shadow-slate-200/50 mb-6 relative">
         <div className="p-4 bg-slate-900 text-white flex justify-between items-center text-sm font-medium">
           <span>
-            {role === 'FACTORY' ? '납품(출고) 모드' : (scanMode === 'INBOUND' ? '입고 모드' : '출고 모드')}
+            {role === 'FACTORY' ? '납품(출고) 모드' : (scanMode === 'INBOUND' ? '입고 모드' : '직원 지급 모드')}
           </span>
           <span className="flex items-center text-slate-400 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2"></span>
             Ready
           </span>
         </div>
+        
+        {scanMode === 'OUTBOUND' && (
+          <div className="bg-indigo-50 border-b border-indigo-100 p-3 flex justify-between items-center text-sm">
+            {scannedEmployee ? (
+              <>
+                <div className="flex items-center text-indigo-700 font-bold">
+                  <UserCheck className="w-4 h-4 mr-1.5" />
+                  {scannedEmployee.name} ({scannedEmployee.department})
+                </div>
+                <button 
+                  onClick={() => setScannedEmployee(null)} 
+                  className="px-3 py-1 bg-white text-indigo-600 rounded-md shadow-sm border border-indigo-100 text-xs font-bold hover:bg-indigo-100 transition-colors"
+                >
+                  직원 변경
+                </button>
+              </>
+            ) : (
+              <div className="text-slate-600 font-bold w-full text-center py-1">
+                직원 사원증 바코드를 먼저 스캔해주세요.
+              </div>
+            )}
+          </div>
+        )}
         
         {/* html5-qrcode가 렌더링될 영역 */}
         <div id="reader" className="w-full bg-black min-h-[300px]"></div>
@@ -157,10 +216,12 @@ export default function Scanner() {
                 "w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-4",
                 scanResult.success ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
               )}>
-                {scanResult.success ? <PackagePlus className="w-8 h-8" /> : <PackageMinus className="w-8 h-8" />}
+                {scanResult.type === 'EMPLOYEE' 
+                   ? <UserCheck className="w-8 h-8" />
+                   : (scanResult.success ? <PackagePlus className="w-8 h-8" /> : <PackageMinus className="w-8 h-8" />)}
               </div>
               <h3 className="text-lg font-bold text-slate-900 mb-1">
-                {scanResult.success ? '처리 완료' : '처리 실패'}
+                {scanResult.type === 'EMPLOYEE' ? '직원 스캔' : (scanResult.success ? '처리 완료' : '처리 실패')}
               </h3>
               <p className="text-sm font-semibold text-slate-700 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
                 {scanResult.message}

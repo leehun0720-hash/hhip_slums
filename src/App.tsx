@@ -14,6 +14,7 @@ import BuyerInventory from './pages/BuyerInventory';
 import AuthProvider from './components/AuthProvider';
 import AdminSettings from './pages/AdminSettings';
 import ContractManager from './pages/ContractManager';
+import EmployeeManager from './pages/EmployeeManager';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="scanner" element={<Scanner />} />
             <Route path="reports" element={<Reports />} />
             <Route path="contract" element={<ContractManager />} />
+            <Route path="employee" element={<EmployeeManager />} />
             <Route path="admin" element={<AdminSettings />} />
           </Route>
         </Routes>
