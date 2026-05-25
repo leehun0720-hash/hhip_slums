@@ -92,47 +92,46 @@ export default function ProductManager() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const padding = 30;
-      const textSpace = 90;
-      const scale = 3; // 3배 해상도
+      const scale = 4; // 4배 초고해상도
+      const padding = 30 * scale;
+      const textSpace = 90 * scale;
       
-      const baseWidth = Math.max(originalCanvas.width, 300) + (padding * 2);
-      const baseHeight = originalCanvas.height + textSpace + (padding * 2);
-
-      canvas.width = baseWidth * scale;
-      canvas.height = baseHeight * scale;
-      ctx.scale(scale, scale);
+      const originalW = originalCanvas.width * scale;
+      const originalH = originalCanvas.height * scale;
+      
+      canvas.width = Math.max(originalW, 300 * scale) + (padding * 2);
+      canvas.height = originalH + textSpace + (padding * 2);
 
       // White background
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, baseWidth, baseHeight);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw barcode (sharp)
+      // Draw barcode (sharp nearest-neighbor)
       ctx.imageSmoothingEnabled = false;
-      const barcodeX = (baseWidth - originalCanvas.width) / 2;
-      ctx.drawImage(originalCanvas, barcodeX, padding, originalCanvas.width, originalCanvas.height);
+      const barcodeX = (canvas.width - originalW) / 2;
+      ctx.drawImage(originalCanvas, barcodeX, padding, originalW, originalH);
 
-      // Draw text (smooth/anti-aliased)
+      // Draw text (native smooth rendering at large font size)
       ctx.imageSmoothingEnabled = true;
       ctx.textAlign = 'center';
-      const centerX = baseWidth / 2;
-      let y = padding + originalCanvas.height + 30;
+      const centerX = canvas.width / 2;
+      let y = padding + originalH + (30 * scale);
 
       // ID
       ctx.fillStyle = '#1e293b';
-      ctx.font = 'bold 22px monospace';
+      ctx.font = `bold ${22 * scale}px monospace`;
       ctx.fillText(generatedProduct.id, centerX, y);
 
       // Category & Type
-      y += 28;
+      y += 28 * scale;
       ctx.fillStyle = '#475569';
-      ctx.font = 'bold 16px sans-serif';
+      ctx.font = `bold ${16 * scale}px sans-serif`;
       ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, centerX, y);
 
       // Size & Color
-      y += 22;
+      y += 22 * scale;
       ctx.fillStyle = '#64748b';
-      ctx.font = '14px sans-serif';
+      ctx.font = `${14 * scale}px sans-serif`;
       ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, centerX, y);
 
       canvas.toBlob((blob) => {

@@ -143,47 +143,46 @@ export default function EmployeeManager() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const padding = 30;
-      const textSpace = 100;
-      const scale = 3; // 3배 해상도
+      const scale = 4; // 4배 초고해상도
+      const padding = 30 * scale;
+      const textSpace = 100 * scale;
       
-      const baseWidth = Math.max(originalCanvas.width, 250) + (padding * 2);
-      const baseHeight = originalCanvas.height + textSpace + (padding * 2);
-
-      canvas.width = baseWidth * scale;
-      canvas.height = baseHeight * scale;
-      ctx.scale(scale, scale);
+      const originalW = originalCanvas.width * scale;
+      const originalH = originalCanvas.height * scale;
+      
+      canvas.width = Math.max(originalW, 250 * scale) + (padding * 2);
+      canvas.height = originalH + textSpace + (padding * 2);
 
       // White background
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, baseWidth, baseHeight);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw barcode (sharp)
+      // Draw barcode (sharp nearest-neighbor)
       ctx.imageSmoothingEnabled = false;
-      const barcodeX = (baseWidth - originalCanvas.width) / 2;
-      ctx.drawImage(originalCanvas, barcodeX, padding, originalCanvas.width, originalCanvas.height);
+      const barcodeX = (canvas.width - originalW) / 2;
+      ctx.drawImage(originalCanvas, barcodeX, padding, originalW, originalH);
 
-      // Draw texts below barcode (smooth)
+      // Draw texts below barcode (smooth native rendering)
       ctx.imageSmoothingEnabled = true;
       ctx.textAlign = 'center';
-      const centerX = baseWidth / 2;
-      let y = padding + originalCanvas.height + 35;
+      const centerX = canvas.width / 2;
+      let y = padding + originalH + (35 * scale);
 
       // Name
       ctx.fillStyle = '#1e293b';
-      ctx.font = 'bold 22px sans-serif';
+      ctx.font = `bold ${22 * scale}px sans-serif`;
       ctx.fillText(selectedEmployee.name, centerX, y);
 
       // Department
-      y += 26;
+      y += 26 * scale;
       ctx.fillStyle = '#64748b';
-      ctx.font = '16px sans-serif';
+      ctx.font = `${16 * scale}px sans-serif`;
       ctx.fillText(selectedEmployee.department, centerX, y);
 
       // ID
-      y += 24;
+      y += 24 * scale;
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '12px monospace';
+      ctx.font = `${12 * scale}px monospace`;
       ctx.fillText(selectedEmployee.id, centerX, y);
 
       canvas.toBlob((blob) => {
