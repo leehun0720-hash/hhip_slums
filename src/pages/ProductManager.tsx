@@ -102,19 +102,18 @@ export default function ProductManager() {
       canvas.width = baseWidth * scale;
       canvas.height = baseHeight * scale;
       ctx.scale(scale, scale);
-      
-      // 이미지 렌더링 최적화 (흐림 방지)
-      ctx.imageSmoothingEnabled = false;
 
       // White background
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-      // Center the barcode horizontally
+      // Draw barcode (sharp)
+      ctx.imageSmoothingEnabled = false;
       const barcodeX = (baseWidth - originalCanvas.width) / 2;
       ctx.drawImage(originalCanvas, barcodeX, padding, originalCanvas.width, originalCanvas.height);
 
-      // Draw texts below barcode
+      // Draw text (smooth/anti-aliased)
+      ctx.imageSmoothingEnabled = true;
       ctx.textAlign = 'center';
       const centerX = baseWidth / 2;
       let y = padding + originalCanvas.height + 30;

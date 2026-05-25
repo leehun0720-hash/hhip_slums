@@ -153,19 +153,18 @@ export default function EmployeeManager() {
       canvas.width = baseWidth * scale;
       canvas.height = baseHeight * scale;
       ctx.scale(scale, scale);
-      
-      // 흐림 방지
-      ctx.imageSmoothingEnabled = false;
 
       // White background
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-      // Center the barcode horizontally
+      // Draw barcode (sharp)
+      ctx.imageSmoothingEnabled = false;
       const barcodeX = (baseWidth - originalCanvas.width) / 2;
       ctx.drawImage(originalCanvas, barcodeX, padding, originalCanvas.width, originalCanvas.height);
 
-      // Draw texts below barcode
+      // Draw texts below barcode (smooth)
+      ctx.imageSmoothingEnabled = true;
       ctx.textAlign = 'center';
       const centerX = baseWidth / 2;
       let y = padding + originalCanvas.height + 35;
