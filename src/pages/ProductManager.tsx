@@ -80,20 +80,29 @@ export default function ProductManager() {
   };
 
   const handleCopyImage = async () => {
-    if (barcodeRef.current) {
-      try {
-        const canvas = await html2canvas(barcodeRef.current);
-        canvas.toBlob(async (blob) => {
-          if (blob) {
-             const item = new ClipboardItem({ 'image/png': blob });
-             await navigator.clipboard.write([item]);
-             alert('바코드 이미지가 클립보드에 복사되었습니다.');
+    if (!barcodeRef.current) return;
+    try {
+      const item = new ClipboardItem({
+        'image/png': new Promise(async (resolve, reject) => {
+          try {
+            const canvas = await html2canvas(barcodeRef.current, { scale: 2 });
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('Failed to create image blob'));
+              }
+            }, 'image/png');
+          } catch (err) {
+            reject(err);
           }
-        });
-      } catch (err) {
-        console.error('Failed to copy image: ', err);
-        alert('클립보드 복사를 지원하지 않는 브라우저입니다.');
-      }
+        })
+      });
+      await navigator.clipboard.write([item]);
+      alert('바코드 이미지가 클립보드에 복사되었습니다.');
+    } catch (err) {
+      console.error('Failed to copy image: ', err);
+      alert('클립보드 복사를 지원하지 않거나 권한이 없습니다. 다른 브라우저를 이용해주세요.');
     }
   };
   
@@ -400,6 +409,7 @@ export default function ProductManager() {
                         background="#ffffff"
                         lineColor="#0f172a"
                         margin={0}
+                        renderer="canvas"
                       />
                       <div className="mt-3 font-mono font-bold text-slate-800 text-lg tracking-wider">
                         {generatedProduct.id}
