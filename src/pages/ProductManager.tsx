@@ -94,13 +94,13 @@ export default function ProductManager() {
 
       const scale = 4; // 4배 초고해상도
       const padding = 30 * scale;
-      const textSpace = 90 * scale;
+      const textWidth = 300 * scale;
       
       const originalW = originalCanvas.width * scale;
       const originalH = originalCanvas.height * scale;
       
-      canvas.width = Math.max(originalW, 300 * scale) + (padding * 2);
-      canvas.height = originalH + textSpace + (padding * 2);
+      canvas.width = originalW + textWidth + (padding * 3);
+      canvas.height = Math.max(originalH, 100 * scale) + (padding * 2);
 
       // White background
       ctx.fillStyle = '#ffffff';
@@ -108,31 +108,30 @@ export default function ProductManager() {
 
       // Draw barcode (sharp nearest-neighbor)
       ctx.imageSmoothingEnabled = false;
-      const barcodeX = (canvas.width - originalW) / 2;
-      ctx.drawImage(originalCanvas, barcodeX, padding, originalW, originalH);
+      const barcodeY = (canvas.height - originalH) / 2;
+      ctx.drawImage(originalCanvas, padding, barcodeY, originalW, originalH);
 
       // Draw text (native smooth rendering at large font size)
       ctx.imageSmoothingEnabled = true;
-      ctx.textAlign = 'center';
-      const centerX = canvas.width / 2;
-      let y = padding + originalH + (30 * scale);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const textX = padding + originalW + padding;
+      const centerY = canvas.height / 2;
 
       // ID
       ctx.fillStyle = '#1e293b';
-      ctx.font = `bold ${22 * scale}px monospace`;
-      ctx.fillText(generatedProduct.id, centerX, y);
+      ctx.font = `bold ${24 * scale}px monospace`;
+      ctx.fillText(generatedProduct.id, textX, centerY - (22 * scale));
 
       // Category & Type
-      y += 28 * scale;
       ctx.fillStyle = '#475569';
-      ctx.font = `bold ${16 * scale}px sans-serif`;
-      ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, centerX, y);
+      ctx.font = `bold ${18 * scale}px sans-serif`;
+      ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, textX, centerY + (8 * scale));
 
       // Size & Color
-      y += 22 * scale;
       ctx.fillStyle = '#64748b';
-      ctx.font = `${14 * scale}px sans-serif`;
-      ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, centerX, y);
+      ctx.font = `${16 * scale}px sans-serif`;
+      ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, textX, centerY + (36 * scale));
 
       canvas.toBlob((blob) => {
         if (!blob) {
@@ -448,21 +447,23 @@ export default function ProductManager() {
                 <div className="space-y-6 animate-in zoom-in-95 duration-500">
                   <div className="relative">
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl blur opacity-20"></div>
-                    <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto text-center flex flex-col items-center">
+                    <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto flex items-center justify-center gap-6">
                       <QRCodeCanvas 
                         value={generatedProduct.id} 
                         size={100}
                         level="M"
                         marginSize={2}
                       />
-                      <div className="mt-3 font-mono font-bold text-slate-800 text-lg tracking-wider">
-                        {generatedProduct.id}
-                      </div>
-                      <div className="mt-1 text-slate-600 font-semibold text-sm">
-                        [{generatedProduct.data.category}] {generatedProduct.data.type}
-                      </div>
-                      <div className="text-slate-500 text-xs">
-                        {generatedProduct.data.size} / {generatedProduct.data.color}
+                      <div className="flex flex-col text-left justify-center">
+                        <div className="font-mono font-bold text-slate-800 text-lg tracking-wider">
+                          {generatedProduct.id}
+                        </div>
+                        <div className="mt-1 text-slate-600 font-semibold text-sm">
+                          [{generatedProduct.data.category}] {generatedProduct.data.type}
+                        </div>
+                        <div className="text-slate-500 text-xs mt-1">
+                          {generatedProduct.data.size} / {generatedProduct.data.color}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -145,13 +145,13 @@ export default function EmployeeManager() {
 
       const scale = 4; // 4배 초고해상도
       const padding = 30 * scale;
-      const textSpace = 100 * scale;
+      const textWidth = 250 * scale;
       
       const originalW = originalCanvas.width * scale;
       const originalH = originalCanvas.height * scale;
       
-      canvas.width = Math.max(originalW, 250 * scale) + (padding * 2);
-      canvas.height = originalH + textSpace + (padding * 2);
+      canvas.width = originalW + textWidth + (padding * 3);
+      canvas.height = Math.max(originalH, 100 * scale) + (padding * 2);
 
       // White background
       ctx.fillStyle = '#ffffff';
@@ -159,31 +159,30 @@ export default function EmployeeManager() {
 
       // Draw barcode (sharp nearest-neighbor)
       ctx.imageSmoothingEnabled = false;
-      const barcodeX = (canvas.width - originalW) / 2;
-      ctx.drawImage(originalCanvas, barcodeX, padding, originalW, originalH);
+      const barcodeY = (canvas.height - originalH) / 2;
+      ctx.drawImage(originalCanvas, padding, barcodeY, originalW, originalH);
 
       // Draw texts below barcode (smooth native rendering)
       ctx.imageSmoothingEnabled = true;
-      ctx.textAlign = 'center';
-      const centerX = canvas.width / 2;
-      let y = padding + originalH + (35 * scale);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const textX = padding + originalW + padding;
+      const centerY = canvas.height / 2;
 
       // Name
       ctx.fillStyle = '#1e293b';
-      ctx.font = `bold ${22 * scale}px sans-serif`;
-      ctx.fillText(selectedEmployee.name, centerX, y);
+      ctx.font = `bold ${24 * scale}px sans-serif`;
+      ctx.fillText(selectedEmployee.name, textX, centerY - (18 * scale));
 
       // Department
-      y += 26 * scale;
       ctx.fillStyle = '#64748b';
-      ctx.font = `${16 * scale}px sans-serif`;
-      ctx.fillText(selectedEmployee.department, centerX, y);
+      ctx.font = `${18 * scale}px sans-serif`;
+      ctx.fillText(selectedEmployee.department, textX, centerY + (12 * scale));
 
       // ID
-      y += 24 * scale;
       ctx.fillStyle = '#94a3b8';
-      ctx.font = `${12 * scale}px monospace`;
-      ctx.fillText(selectedEmployee.id, centerX, y);
+      ctx.font = `${14 * scale}px monospace`;
+      ctx.fillText(selectedEmployee.id, textX, centerY + (36 * scale));
 
       canvas.toBlob((blob) => {
         if (!blob) {
@@ -313,16 +312,18 @@ export default function EmployeeManager() {
               <h3 className="text-sm font-bold text-slate-500 mb-6 uppercase tracking-widest">사원증 바코드 발급</h3>
               
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center w-full relative group">
-                <div ref={barcodeRef} className="flex flex-col items-center">
+                <div ref={barcodeRef} className="flex items-center justify-center gap-6 text-left">
                   <QRCodeCanvas 
                     value={selectedEmployee.id}
                     size={100}
                     level="M"
                     marginSize={2}
                   />
-                  <div className="mt-4 font-bold text-lg text-slate-800">{selectedEmployee.name}</div>
-                  <div className="text-sm text-slate-500">{selectedEmployee.department}</div>
-                  <div className="mt-1 text-xs font-mono text-slate-400">{selectedEmployee.id}</div>
+                  <div className="flex flex-col justify-center">
+                    <div className="font-bold text-lg text-slate-800">{selectedEmployee.name}</div>
+                    <div className="text-sm text-slate-500 mt-1">{selectedEmployee.department}</div>
+                    <div className="mt-2 text-xs font-mono text-slate-400">{selectedEmployee.id}</div>
+                  </div>
                 </div>
               </div>
 
