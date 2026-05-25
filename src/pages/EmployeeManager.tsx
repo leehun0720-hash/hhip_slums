@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useStore, Employee } from '@/store/useStore';
 import { Upload, Plus, Trash2, Printer, Search, Users, Copy, Download } from 'lucide-react';
-import Barcode from 'react-barcode';
+import { QRCodeCanvas } from 'qrcode.react';
 import * as XLSX from 'xlsx';
 
 export default function EmployeeManager() {
@@ -314,13 +314,11 @@ export default function EmployeeManager() {
               
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center w-full relative group">
                 <div ref={barcodeRef} className="flex flex-col items-center">
-                  <Barcode 
+                  <QRCodeCanvas 
                     value={selectedEmployee.id}
-                    height={50}
-                    width={2}
-                    displayValue={false}
-                    margin={0}
-                    renderer="canvas"
+                    size={100}
+                    level="M"
+                    marginSize={2}
                   />
                   <div className="mt-4 font-bold text-lg text-slate-800">{selectedEmployee.name}</div>
                   <div className="text-sm text-slate-500">{selectedEmployee.department}</div>

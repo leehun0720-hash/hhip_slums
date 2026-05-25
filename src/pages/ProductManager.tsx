@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Barcode from 'react-barcode';
+import { QRCodeCanvas } from 'qrcode.react';
 import { PlusCircle, Barcode as BarcodeIcon, Edit2, Trash2, X, Printer, Copy, Settings2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { useStore, Product } from '@/store/useStore';
@@ -449,15 +449,11 @@ export default function ProductManager() {
                   <div className="relative">
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl blur opacity-20"></div>
                     <div ref={barcodeRef} className="relative bg-white p-6 rounded-2xl shadow-sm border border-slate-100 inline-block print-area w-full overflow-x-auto text-center flex flex-col items-center">
-                      <Barcode 
+                      <QRCodeCanvas 
                         value={generatedProduct.id} 
-                        width={2.5}
-                        height={60}
-                        displayValue={false}
-                        background="#ffffff"
-                        lineColor="#0f172a"
-                        margin={0}
-                        renderer="canvas"
+                        size={100}
+                        level="M"
+                        marginSize={2}
                       />
                       <div className="mt-3 font-mono font-bold text-slate-800 text-lg tracking-wider">
                         {generatedProduct.id}
