@@ -82,27 +82,82 @@ export default function ProductManager() {
   const handleCopyImage = async () => {
     if (!barcodeRef.current || !generatedProduct) return;
     try {
-      const clipboardPromise = new Promise<Blob>(async (resolve, reject) => {
-        try {
-          const canvas = await html2canvas(barcodeRef.current as HTMLElement, { 
-            scale: 4,
-            backgroundColor: '#ffffff'
-          });
-          canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('Blob 생성 실패'));
-          }, 'image/png');
-        } catch (err) {
-          reject(err);
-        }
-      });
+      const barcodeCanvas = barcodeRef.current.querySelector('canvas');
+      if (!barcodeCanvas) {
+        alert('바코드를 찾을 수 없습니다.');
+        return;
+      }
 
-      const item = new ClipboardItem({ 'image/png': clipboardPromise });
-      await navigator.clipboard.write([item]);
-      alert('바코드 이미지가 클립보드에 복사되었습니다. 엑셀이나 메신저에 붙여넣기(Ctrl+V) 하세요.');
+      const scale = 4; // 4배 초고해상도
+      const originalW = barcodeCanvas.width;
+      const originalH = barcodeCanvas.height;
+      const scaledW = originalW * scale;
+      const scaledH = originalH * scale;
+
+      const padding = 30 * scale;
+      const idHeight = 36 * scale;
+      const typeHeight = 24 * scale;
+      const sizeHeight = 20 * scale;
+      const gap = 16 * scale;
+      const textBlockHeight = idHeight + typeHeight + sizeHeight + (gap * 2);
+      
+      const compCanvas = document.createElement('canvas');
+      compCanvas.width = Math.max(scaledW, 350 * scale) + (padding * 2);
+      compCanvas.height = scaledH + textBlockHeight + (padding * 2) + gap;
+      
+      const ctx = compCanvas.getContext('2d');
+      if (!ctx) return;
+
+      // 흰색 배경
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, compCanvas.width, compCanvas.height);
+
+      // 바코드는 안티앨리어싱 없이 또렷하게 스케일링
+      ctx.imageSmoothingEnabled = false;
+      const barcodeX = (compCanvas.width - scaledW) / 2;
+      ctx.drawImage(barcodeCanvas, barcodeX, padding, scaledW, scaledH);
+
+      // 텍스트는 브라우저 네이티브 안티앨리어싱 적용
+      ctx.imageSmoothingEnabled = true;
+      ctx.textAlign = 'center';
+      const centerX = compCanvas.width / 2;
+      let currentY = padding + scaledH + gap;
+
+      // Product ID
+      currentY += idHeight;
+      ctx.fillStyle = '#1e293b';
+      ctx.font = `bold ${32 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+      ctx.fillText(generatedProduct.id, centerX, currentY);
+
+      // Category & Type
+      currentY += typeHeight + gap;
+      ctx.fillStyle = '#475569';
+      ctx.font = `bold ${22 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+      ctx.fillText(`[${generatedProduct.data.category}] ${generatedProduct.data.type}`, centerX, currentY);
+
+      // Size & Color
+      currentY += sizeHeight + gap;
+      ctx.fillStyle = '#64748b';
+      ctx.font = `600 ${18 * scale}px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif`;
+      ctx.fillText(`${generatedProduct.data.size} / ${generatedProduct.data.color}`, centerX, currentY);
+
+      compCanvas.toBlob((blob) => {
+        if (!blob) return;
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item]).then(() => {
+          alert('바코드 이미지가 복사되었습니다.');
+        }).catch(() => {
+          // Fallback for some browsers
+          const item2 = new ClipboardItem({ 'image/png': new Promise(resolve => resolve(blob)) });
+          navigator.clipboard.write([item2])
+            .then(() => alert('바코드 이미지가 복사되었습니다.'))
+            .catch(() => alert('클립보드 권한이 거부되었습니다.'));
+        });
+      }, 'image/png');
+
     } catch (err) {
       console.error(err);
-      alert('클립보드 권한이 없거나 지원하지 않는 환경입니다.');
+      alert('복사 중 오류가 발생했습니다.');
     }
   };
   
@@ -409,6 +464,7 @@ export default function ProductManager() {
                         margin={0}
                         background="#ffffff"
                         lineColor="#0f172a"
+                        renderer="canvas"
                       />
                       <div className="flex flex-col items-center justify-center mt-4">
                         <div className="font-mono font-bold text-slate-800 text-xl tracking-wider">
